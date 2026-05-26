@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员后台</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+        .card {
+            width: min(900px, 100%);
+            background: rgba(15, 23, 42, 0.86);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+            backdrop-filter: blur(10px);
+        }
+        h3 { margin: 0 0 12px; font-size: 28px; }
+        p { color: #94a3b8; line-height: 1.7; }
+        ul { line-height: 1.9; }
+        .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+        a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            color: #e2e8f0;
+            text-decoration: none;
+            background: rgba(15, 23, 42, 0.55);
+        }
+        a.primary {
+            background: #38bdf8;
+            color: #082f49;
+            border-color: transparent;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h3>权限管理后台</h3>
+        <ul>
+            <li>用户账号管理（新增/禁用/修改角色等级）</li>
+            <li>部门架构维护</li>
+            <li>文档密级、白名单、黑名单配置</li>
+            <li>知识库文档上传与权限绑定</li>
+        </ul>
+        <p>所有权限规则沿用：跨部门隔离 + 部门内多层级RBAC</p>
+        <div class="actions">
+            <a class="primary" href="/view/upload.html">上传知识库资料</a>
+            <a href="/chat">返回对话页</a>
+        </div>
+    </div>
+</body>
+</html>

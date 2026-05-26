@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库资料上传</title>
+    <style>
+        :root {
+            --bg: linear-gradient(135deg, #0f172a, #1e293b);
+            --card: rgba(15, 23, 42, 0.86);
+            --border: rgba(148, 163, 184, 0.25);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --primary: #38bdf8;
+            --primary-hover: #0ea5e9;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+        .card {
+            width: min(900px, 100%);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+            backdrop-filter: blur(10px);
+        }
+        h1 { margin: 0 0 8px; font-size: 28px; }
+        p.sub { margin: 0 0 24px; color: var(--muted); }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+        .field { display: flex; flex-direction: column; gap: 8px; }
+        .field.full { grid-column: 1 / -1; }
+        label { font-size: 14px; color: #cbd5e1; }
+        input, select, button {
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.7);
+            color: var(--text);
+            padding: 12px 14px;
+            font-size: 15px;
+            outline: none;
+        }
+        input[type="file"] { padding: 10px 14px; }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2); }
+        .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+        button {
+            cursor: pointer;
+            background: var(--primary);
+            border-color: transparent;
+            color: #082f49;
+            font-weight: 700;
+            min-width: 140px;
+        }
+        button:hover { background: var(--primary-hover); }
+        .ghost { background: transparent; color: var(--text); border-color: var(--border); }
+        .status {
+            margin-top: 16px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            white-space: pre-wrap;
+        }
+        .status.success { color: var(--success); }
+        .status.error { color: var(--danger); }
+        .tips {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        a { color: var(--primary); text-decoration: none; }
+        @media (max-width: 720px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>知识库资料上传</h1>
+        <p class="sub">上传文档并绑定部门与密级，供 RAG 检索使用。</p>
+
+        <form id="uploadForm">
+            <div class="grid">
+                <div class="field full">
+                    <label for="file">选择文件</label>
+                    <input id="file" name="file" type="file" accept=".txt,.pdf,.md,.docx" required />
+                </div>
+                <div class="field">
+                    <label for="user_id">上传人账号</label>
+                    <input id="user_id" name="user_id" type="text" placeholder="例如：sale_mgr_01" required />
+                </div>
+                <div class="field">
+                    <label for="dept_owner">所属部门</label>
+                    <input id="dept_owner" name="dept_owner" type="text" placeholder="例如：销售部" required />
+                </div>
+                <div class="field">
+                    <label for="secret_level">文档密级</label>
+                    <select id="secret_level" name="secret_level">
+                        <option value="0">0 - 公开</option>
+                        <option value="1" selected>1 - 普通</option>
+                        <option value="2">2 - 内部</option>
+                        <option value="3">3 - 机密</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>操作</label>
+                    <button type="submit">上传资料</button>
+                </div>
+            </div>
+        </form>
+
+        <div id="status" class="status">请选择文件并填写权限信息后上传。</div>
+
+        <div class="actions">
+            <a class="ghost" href="/admin" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);">返回管理页</a>
+            <a class="ghost" href="/chat" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);">返回对话页</a>
+        </div>
+
+        <div class="tips">
+            <div>支持格式：<code>.txt</code>、<code>.pdf</code>、<code>.md</code>、<code>.docx</code></div>
+            <div>上传后系统会自动切片、向量化并写入权限标签。</div>
+            <div>注意：当前接口使用文件内容入库，建议上传清晰结构化的制度、说明和说明文档。</div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const statusEl = document.getElementById('status');
+
+        function setStatus(message, type = '') {
+            statusEl.className = 'status ' + type;
+            statusEl.textContent = message;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            setStatus('正在上传并入库，请稍候...');
+
+            try {
+                const resp = await fetch('/doc/ingest', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await resp.json();
+                if (resp.ok && data.code === 200) {
+                    setStatus(`上传成功：${data.msg}\n文档ID：${data.doc_id}`, 'success');
+                    form.reset();
+                    document.getElementById('secret_level').value = '1';
+                } else {
+                    const detail = data.detail ? `\n详情：${data.detail}` : '';
+                    const errorType = data.error_type ? `\n错误类型：${data.error_type}` : '';
+                    setStatus(`${data.msg || '上传失败'}${errorType}${detail}`, 'error');
+                }
+            } catch (err) {
+                setStatus('上传失败：' + err.message, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

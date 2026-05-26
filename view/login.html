@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>企业知识库-登录</title>
+</head>
+<body style="text-align:center;margin-top:100px;">
+    <h2>RBAC企业RAG智能知识库</h2>
+    <div style="margin:20px;">
+        <input type="text" id="user_id" placeholder="输入账号" style="padding:8px;width:250px;"><br><br>
+        <input type="password" id="pwd" placeholder="输入密码" style="padding:8px;width:250px;"><br><br>
+        <button onclick="login()" style="padding:10px 30px;background:#2385ff;color:#fff;border:none;">登录</button>
+    </div>
+    <script>
+        async function login(){
+            let user_id = document.getElementById("user_id").value;
+            let pwd = document.getElementById("pwd").value;
+            let formData = new FormData();
+            formData.append("user_id", user_id);
+            formData.append("password", pwd);
+
+            let res = await fetch("/api/user/login", {
+                method: "POST",
+                body: formData
+            });
+            let data = await res.json();
+            if(data.code===200){
+                localStorage.setItem("token",data.token);
+                location.href="/chat";
+            }else{
+                alert(data.msg);
+            }
+        }
+    </script>
+</body>
+</html>

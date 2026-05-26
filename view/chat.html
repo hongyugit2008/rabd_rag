@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>智能办公问答</title>
+</head>
+<body>
+    <h3>企业私有知识库问答</h3>
+    <textarea id="q" placeholder="请输入问题" style="width:600px;height:100px;"></textarea>
+    <br>
+    <button onclick="ask()">提交提问</button>
+    <div id="ans" style="margin-top:20px;white-space:pre-wrap;"></div>
+
+    <script>
+        async function ask(){
+            let token = localStorage.getItem("token");
+            if(!token){location.href="/";return;}
+            let q = document.getElementById("q").value;
+            let ans = document.getElementById("ans");
+            ans.innerText = "正在思考，请稍候...";
+
+            try {
+                let res = await fetch("/rag/chat",{
+                    method:"POST",
+                    headers:{
+                        "Authorization":"Bearer "+token,
+                        "Content-Type":"application/x-www-form-urlencoded"
+                    },
+                    body:"query="+encodeURIComponent(q)
+                });
+
+                let text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error(text || "服务返回了非JSON内容");
+                }
+
+                ans.innerText = data.data || data.msg || "暂无返回结果";
+            } catch (error) {
+                ans.innerText = "请求失败：" + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
