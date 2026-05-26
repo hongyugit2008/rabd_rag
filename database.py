@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from config import *
@@ -31,14 +31,32 @@ class DocPermission(Base):
     vec_group_id = Column(String(50))
     dept_owner = Column(String(50))
     secret_level = Column(Integer, default=1)
-    white_list_users = Column(String(1000), default="")
-    black_list_users = Column(String(1000), default="")
     is_allow_summary = Column(Integer, default=1)
     is_allow_export = Column(Integer, default=1)
     uploader_id = Column(String(50))
+    file_sha256 = Column(String(64), unique=True, index=True, nullable=False)
+    text_sha256 = Column(String(64), index=True, nullable=False)
+    original_filename = Column(String(255), default="")
     create_time = Column(DateTime, default=datetime.datetime.now)
 
-# 3. 权限映射规则表 rbac_rule
+# 3. 统一文档 ACL 表：黑名单/白名单/部门/角色都走这里
+class DocAcl(Base):
+    __tablename__ = "doc_acl"
+    id = Column(Integer, primary_key=True, index=True)
+    doc_permission_id = Column(Integer, ForeignKey("doc_permission.id", ondelete="CASCADE"), nullable=False)
+    subject_type = Column(String(20), nullable=False)  # user / dept / role
+    subject_value = Column(String(100), nullable=False)  # user_id / dept_name / role_level
+    acl_type = Column(String(10), nullable=False)  # allow / deny
+    create_time = Column(DateTime, default=datetime.datetime.now)
+
+    __table_args__ = (
+        UniqueConstraint("doc_permission_id", "subject_type", "subject_value", "acl_type", name="ux_doc_acl_item"),
+        Index("idx_doc_acl_doc_permission_id", "doc_permission_id"),
+        Index("idx_doc_acl_subject", "subject_type", "subject_value"),
+        Index("idx_doc_acl_acl_type", "acl_type"),
+    )
+
+# 4. 权限映射规则表 rbac_rule
 class RbacRule(Base):
     __tablename__ = "rbac_rule"
     id = Column(Integer, primary_key=True, index=True)

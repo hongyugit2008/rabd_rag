@@ -72,4 +72,16 @@ INSERT INTO doc_permission
 VALUES
 ('doc_fin_001', 'dept_财务部', '财务部', 1, '', '', 'finance_staff_01'),
 ('doc_fin_002', 'dept_财务部', '财务部', 3, '', '', 'finance_mgr_01');
+
+ALTER TABLE doc_permission
+MODIFY COLUMN file_sha256 VARCHAR(64) NULL,
+MODIFY COLUMN text_sha256 VARCHAR(64) NULL;
+
+UPDATE doc_permission
+SET file_sha256 = NULL
+WHERE file_sha256 = '';
+UPDATE doc_permission
+SET text_sha256 = NULL
+WHERE text_sha256 = '';
+
 commit;

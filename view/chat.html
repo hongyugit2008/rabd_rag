@@ -87,6 +87,22 @@
         }
         .status { color: var(--muted); }
         a { color: var(--primary); text-decoration: none; }
+        .top-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.55);
+            color: var(--text);
+        }
         @media (max-width: 920px) {
             .layout { grid-template-columns: 1fr; }
         }
@@ -102,9 +118,10 @@
             <div class="user-item"><strong>角色等级</strong><br><span id="role_display">加载中...</span></div>
             <div class="user-item"><strong>可访问最高密级</strong><br><span id="max_secret_display">加载中...</span></div>
             <div class="hint" id="scope_hint">正在加载你的访问范围...</div>
-            <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-                <a href="/view/upload.html">上传资料</a>
-                <a href="/admin">管理后台</a>
+            <div class="top-actions">
+                <a class="action-btn" href="/view/upload.html">上传资料</a>
+                <a class="action-btn" href="/admin">管理后台</a>
+                <a class="action-btn" href="#" onclick="logout(); return false;">退出系统</a>
             </div>
         </div>
         <div class="panel">
@@ -125,6 +142,11 @@
         const ans = document.getElementById('ans');
         const roleNames = ['普通员工', '业务骨干', '部门负责人', '高管/管理员'];
         const secretLabels = ['0 - 公开', '1 - 普通', '2 - 内部', '3 - 机密'];
+
+        function logout() {
+            localStorage.removeItem('token');
+            location.href = '/';
+        }
 
         async function loadUserInfo() {
             if (!token) {

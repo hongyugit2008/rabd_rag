@@ -2,6 +2,7 @@ import logging
 from sqlalchemy.orm import Session
 from openai import OpenAI
 from rbac_middleware import RBACFilter
+from database import DocPermission, DocAcl
 from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODE, ROLE_SECRET_RULE
 from doc_ingest import vector_db
 
@@ -20,20 +21,93 @@ client = OpenAI(
 )
 
 
-def _retrieve_chunks(query: str, dept_name: str, role_level: int):
-    """优先在用户部门内检索，再回退到全局检索。"""
+def _acl_match_subject(item: DocAcl, user_id: str, dept_name: str, role_level: int) -> bool:
+    role_level_str = str(role_level)
+    if item.subject_type == "user":
+        return item.subject_value == user_id
+    if item.subject_type == "dept":
+        return item.subject_value == dept_name
+    if item.subject_type == "role":
+        return item.subject_value == role_level_str
+    return False
+
+
+def _get_acl_candidate_doc_ids(db: Session, user_id: str, dept_name: str, role_level: int):
+    """先在数据库里筛出当前用户可访问的 doc_id，再去 Chroma 召回。"""
+    docs = db.query(DocPermission).all()
+    allowed_doc_ids = []
+    for doc in docs:
+        acl_items = db.query(DocAcl).filter(DocAcl.doc_permission_id == doc.id).all()
+        if not acl_items:
+            allowed_doc_ids.append(doc.doc_id)
+            logger.info("acl prefilter allow by default | doc_id=%s | reason=no_acl", doc.doc_id)
+            continue
+
+        deny_hit = next((item for item in acl_items if item.acl_type == "deny" and _acl_match_subject(item, user_id, dept_name, role_level)), None)
+        if deny_hit:
+            logger.info(
+                "acl prefilter deny | user_id=%s | doc_id=%s | doc_permission_id=%s | subject=%s:%s",
+                user_id,
+                doc.doc_id,
+                doc.id,
+                deny_hit.subject_type,
+                deny_hit.subject_value,
+            )
+            continue
+
+        allow_items = [item for item in acl_items if item.acl_type == "allow"]
+        if allow_items:
+            matched = next((item for item in allow_items if _acl_match_subject(item, user_id, dept_name, role_level)), None)
+            if matched:
+                allowed_doc_ids.append(doc.doc_id)
+                logger.info(
+                    "acl prefilter allow | user_id=%s | doc_id=%s | doc_permission_id=%s | subject=%s:%s",
+                    user_id,
+                    doc.doc_id,
+                    doc.id,
+                    matched.subject_type,
+                    matched.subject_value,
+                )
+            else:
+                logger.info(
+                    "acl prefilter allow-miss | user_id=%s | doc_id=%s | doc_permission_id=%s",
+                    user_id,
+                    doc.doc_id,
+                    doc.id,
+                )
+            continue
+
+        allowed_doc_ids.append(doc.doc_id)
+        logger.info("acl prefilter allow by default | doc_id=%s | reason=no_allow_rules", doc.doc_id)
+
+    return allowed_doc_ids
+
+
+def _retrieve_chunks(query: str, dept_name: str, role_level: int, db: Session, user_id: str):
+    """先按 ACL 过滤可访问文档，再检索 Chroma，并做密级/部门兜底。"""
     allow_max_secret = ROLE_SECRET_RULE.get(role_level, 0)
+    rbac = RBACFilter(db, user_id)
+    allowed_doc_ids = _get_acl_candidate_doc_ids(db, user_id, dept_name, role_level)
+
+    if not allowed_doc_ids:
+        logger.warning("acl prefilter returned no doc ids | user_id=%s", user_id)
+        return []
 
     candidates = []
     try:
+        # Chroma 的 metadata filter 对大集合不友好，这里只做部门过滤，ACL 已前置到数据库层
         candidates = vector_db.similarity_search(query, k=20, filter={"dept_owner": dept_name})
         logger.info("dept filtered search hits=%s | dept=%s", len(candidates), dept_name)
     except Exception:
         logger.exception("dept filtered search failed | dept=%s", dept_name)
 
     if not candidates:
-        candidates = vector_db.similarity_search(query, k=20)
-        logger.info("fallback global search hits=%s", len(candidates))
+        try:
+            candidates = vector_db.similarity_search(query, k=20)
+            logger.info("fallback global search hits=%s", len(candidates))
+        except Exception:
+            logger.exception("global search failed | user_id=%s", user_id)
+            return []
 
     valid_chunks = []
     for idx, item in enumerate(candidates):
@@ -49,13 +123,37 @@ def _retrieve_chunks(query: str, dept_name: str, role_level: int):
             (item.page_content or "")[:80].replace("\n", " "),
         )
 
-        # 部门内优先；如果回退到了全局检索，也仍按权限规则过滤
+        if not doc_id or doc_id not in allowed_doc_ids:
+            continue
         if doc_dept != dept_name and secret_level != 0:
+            logger.info(
+                "chunk filtered by dept | user_id=%s | doc_id=%s | user_dept=%s | doc_dept=%s | secret_level=%s",
+                user_id,
+                doc_id,
+                dept_name,
+                doc_dept,
+                secret_level,
+            )
             continue
         if secret_level > allow_max_secret:
+            logger.info(
+                "chunk filtered by secret | user_id=%s | doc_id=%s | secret_level=%s | allow_max_secret=%s",
+                user_id,
+                doc_id,
+                secret_level,
+                allow_max_secret,
+            )
             continue
+        logger.info(
+            "chunk allowed | user_id=%s | doc_id=%s | dept=%s | secret_level=%s",
+            user_id,
+            doc_id,
+            doc_dept,
+            secret_level,
+        )
         valid_chunks.append(item)
 
+    logger.info("acl prefiltered doc_ids=%s | valid_chunks=%s", len(allowed_doc_ids), len(valid_chunks))
     return valid_chunks
 
 
@@ -69,7 +167,6 @@ def rag_chat(db: Session, user_id: str, query: str):
         LLM_BASE_URL,
     )
     try:
-        # 1. 初始化权限过滤器
         rbac = RBACFilter(db, user_id)
         if rbac.user_info:
             logger.info(
@@ -83,8 +180,7 @@ def rag_chat(db: Session, user_id: str, query: str):
             logger.warning("user has no permission | user_id=%s", user_id)
             return {"code": 403, "msg": "用户无权限"}
 
-        # 2. 权限感知检索：先按部门召回，再按密级过滤
-        valid_chunks = _retrieve_chunks(query, rbac.user_info.dept_name, rbac.user_info.role_level)
+        valid_chunks = _retrieve_chunks(query, rbac.user_info.dept_name, rbac.user_info.role_level, db, user_id)
         logger.info("valid_chunks=%s", len(valid_chunks))
 
         if not valid_chunks:
@@ -96,11 +192,9 @@ def rag_chat(db: Session, user_id: str, query: str):
             )
             return {"code": 200, "data": "暂无相关资料"}
 
-        # 3. 拼接上下文
         context = "\n".join([page.page_content for page in valid_chunks])
         logger.info("context_len=%s", len(context))
 
-        # 4. LLM权限约束Prompt
         prompt = f"""
 你是企业内部智能办公助手，严格遵守数据权限规则：
 1. 仅基于给定上下文回答，禁止编造、推演、猜测涉密数据
@@ -112,7 +206,6 @@ def rag_chat(db: Session, user_id: str, query: str):
 """
         logger.info("prompt_len=%s", len(prompt))
 
-        # 5. 生成答案（与 llm_smoke_test.py 保持完全一致的调用方式）
         response = client.chat.completions.create(
             model=LLM_MODE,
             messages=[

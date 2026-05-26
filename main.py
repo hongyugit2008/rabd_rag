@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, UploadFile, File, Form
+from fastapi import FastAPI, Depends, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -14,7 +14,11 @@ from auth_middleware import get_current_user
 from config import HOST, PORT, ROLE_SECRET_RULE
 
 import os
+import re
+import logging
 import fix_uuid  # 必须是最第一行
+
+logger = logging.getLogger(__name__)
 
 
 # 初始化数据库表
@@ -64,19 +68,25 @@ async def get_me(
 
 @app.post("/doc/ingest")
 async def doc_ingest(
+    request: Request,
     file: UploadFile = File(...),
     secret_level: int = Form(1),
+    acl_subject_types: str = Form(""),
+    acl_subject_values: str = Form(""),
+    acl_types: str = Form(""),
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user)
 ):
     temp_dir = os.path.abspath("./temp_uploads")
     os.makedirs(temp_dir, exist_ok=True)
-    safe_filename = os.path.basename(file.filename).replace("\\", "_").replace("/", "_")
-    file_path = os.path.join(temp_dir, f"{user_id}_{safe_filename}")
+    logger.info("upload start | user_id=%s | temp_dir=%s | original_filename=%s", user_id, temp_dir, file.filename)
     try:
         user = db.query(UserRbac).filter(UserRbac.user_id == user_id).first()
         if not user:
             return JSONResponse(status_code=404, content={"code": 404, "msg": "用户不存在"})
+
+        safe_filename = os.path.basename(file.filename or "upload.docx").replace("\\", "_").replace("/", "_")
+        file_path = os.path.join(temp_dir, f"{user.user_id}_{safe_filename}")
 
         allow_max_secret = ROLE_SECRET_RULE.get(int(user.role_level or 0), 0)
         if secret_level > allow_max_secret:
@@ -89,15 +99,36 @@ async def doc_ingest(
                 },
             )
 
+        file_bytes = await file.read()
+        logger.info("upload payload read | user_id=%s | bytes=%s | file_path=%s", user.user_id, len(file_bytes), file_path)
         with open(file_path, "wb") as f:
-            f.write(await file.read())
+            written = f.write(file_bytes)
+        logger.info("upload file written | user_id=%s | written_bytes=%s | file_exists=%s | file_size=%s", user.user_id, written, os.path.exists(file_path), os.path.getsize(file_path) if os.path.exists(file_path) else -1)
 
-        res = ingest_doc_with_rbac(db, file_path, user.user_id, user.dept_name, secret_level)
+        acl_items = []
+        if acl_subject_types and acl_subject_values and acl_types:
+            subject_types = [x.strip() for x in acl_subject_types.split(",")]
+            subject_values = [x.strip() for x in acl_subject_values.split(",")]
+            acl_type_values = [x.strip() for x in acl_types.split(",")]
+            for st, sv, at in zip(subject_types, subject_values, acl_type_values):
+                acl_items.append({"subject_type": st, "subject_value": sv, "acl_type": at})
+
+        res = ingest_doc_with_rbac(
+            db,
+            file_path,
+            user.user_id,
+            user.dept_name,
+            secret_level,
+            original_filename=safe_filename,
+            acl_items=acl_items,
+        )
         res["temp_file_path"] = file_path
         return JSONResponse(status_code=200, content=res)
     except ValueError as e:
+        logger.exception("upload failed with value error | user_id=%s | file_path=%s", user_id, locals().get("file_path"))
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(e), "error_type": "ValueError"})
     except Exception as e:
+        logger.exception("upload failed | user_id=%s | file_path=%s", user_id, locals().get("file_path"))
         return JSONResponse(status_code=500, content={"code": 500, "msg": "文档入库失败", "error_type": type(e).__name__, "detail": str(e)})
     finally:
         if os.path.exists(file_path):
