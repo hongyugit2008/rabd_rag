@@ -4,14 +4,14 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 # 导入原有业务模块
-from database import get_db, create_tables
+from database import get_db, create_tables, UserRbac
 from doc_ingest import ingest_doc_with_rbac
 from rag_service import rag_chat
 
 # 导入新增登录鉴权模块
 from user_api import router as user_router
 from auth_middleware import get_current_user
-from config import HOST, PORT
+from config import HOST, PORT, ROLE_SECRET_RULE
 
 import os
 import fix_uuid  # 必须是最第一行
@@ -42,39 +42,63 @@ async def go_admin():
     return FileResponse("view/admin.html")
 
 # ============ 文档入库接口（保留不变） ============
+@app.get("/api/user/me")
+async def get_me(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user)
+):
+    user = db.query(UserRbac).filter(UserRbac.user_id == user_id).first()
+    if not user:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "用户不存在"})
+    allow_max_secret = ROLE_SECRET_RULE.get(int(user.role_level or 0), 0)
+    return JSONResponse(status_code=200, content={
+        "code": 200,
+        "data": {
+            "user_id": user.user_id,
+            "username": user.username,
+            "dept_name": user.dept_name,
+            "role_level": user.role_level,
+            "allow_max_secret": allow_max_secret,
+        },
+    })
+
 @app.post("/doc/ingest")
 async def doc_ingest(
     file: UploadFile = File(...),
-    user_id: str = Form(...),
-    dept_owner: str = Form(...),
     secret_level: int = Form(1),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user)
 ):
-    temp_dir = "./temp_uploads"
+    temp_dir = os.path.abspath("./temp_uploads")
     os.makedirs(temp_dir, exist_ok=True)
-    file_path = os.path.join(temp_dir, file.filename)
-
+    safe_filename = os.path.basename(file.filename).replace("\\", "_").replace("/", "_")
+    file_path = os.path.join(temp_dir, f"{user_id}_{safe_filename}")
     try:
+        user = db.query(UserRbac).filter(UserRbac.user_id == user_id).first()
+        if not user:
+            return JSONResponse(status_code=404, content={"code": 404, "msg": "用户不存在"})
+
+        allow_max_secret = ROLE_SECRET_RULE.get(int(user.role_level or 0), 0)
+        if secret_level > allow_max_secret:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "code": 403,
+                    "msg": "无权上传该密级文档",
+                    "detail": f"当前最高可上传密级为 {allow_max_secret}",
+                },
+            )
+
         with open(file_path, "wb") as f:
             f.write(await file.read())
 
-        res = ingest_doc_with_rbac(db, file_path, user_id, dept_owner, secret_level)
+        res = ingest_doc_with_rbac(db, file_path, user.user_id, user.dept_name, secret_level)
+        res["temp_file_path"] = file_path
         return JSONResponse(status_code=200, content=res)
     except ValueError as e:
-        return JSONResponse(
-            status_code=400,
-            content={"code": 400, "msg": str(e), "error_type": "ValueError"},
-        )
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(e), "error_type": "ValueError"})
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "code": 500,
-                "msg": "文档入库失败",
-                "error_type": type(e).__name__,
-                "detail": str(e),
-            },
-        )
+        return JSONResponse(status_code=500, content={"code": 500, "msg": "文档入库失败", "error_type": type(e).__name__, "detail": str(e)})
     finally:
         if os.path.exists(file_path):
             try:

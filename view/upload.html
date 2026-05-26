@@ -28,7 +28,7 @@
             padding: 24px;
         }
         .card {
-            width: min(900px, 100%);
+            width: min(1000px, 100%);
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 20px;
@@ -37,7 +37,34 @@
             backdrop-filter: blur(10px);
         }
         h1 { margin: 0 0 8px; font-size: 28px; }
-        p.sub { margin: 0 0 24px; color: var(--muted); }
+        p.sub { margin: 0 0 20px; color: var(--muted); }
+        .layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        .panel {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.45);
+            padding: 18px;
+        }
+        .panel h2 {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+        .user-item { margin-bottom: 10px; color: var(--muted); line-height: 1.6; }
+        .user-item strong { color: var(--text); }
+        .hint {
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            color: #bae6fd;
+            line-height: 1.7;
+            margin-top: 14px;
+        }
         .grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -86,6 +113,9 @@
             line-height: 1.7;
         }
         a { color: var(--primary); text-decoration: none; }
+        @media (max-width: 920px) {
+            .layout { grid-template-columns: 1fr; }
+        }
         @media (max-width: 720px) {
             .grid { grid-template-columns: 1fr; }
         }
@@ -94,76 +124,140 @@
 <body>
     <div class="card">
         <h1>知识库资料上传</h1>
-        <p class="sub">上传文档并绑定部门与密级，供 RAG 检索使用。</p>
+        <p class="sub">上传文档并绑定权限信息，供 RAG 检索使用。</p>
 
-        <form id="uploadForm">
-            <div class="grid">
-                <div class="field full">
-                    <label for="file">选择文件</label>
-                    <input id="file" name="file" type="file" accept=".txt,.pdf,.md,.docx" required />
+        <div class="layout">
+            <div class="panel">
+                <h2>当前用户信息</h2>
+                <div class="user-item"><strong>账号</strong><br><span id="uploader_display">加载中...</span></div>
+                <div class="user-item"><strong>部门</strong><br><span id="dept_display">加载中...</span></div>
+                <div class="user-item"><strong>角色等级</strong><br><span id="role_display">加载中...</span></div>
+                <div class="user-item"><strong>可上传最高密级</strong><br><span id="max_secret_display">加载中...</span></div>
+                <div class="hint" id="upload_hint">系统将根据你的登录身份自动固定上传人和所属部门，密级选项也会按你的权限自动限制。</div>
+            </div>
+
+            <div class="panel">
+                <form id="uploadForm">
+                    <div class="grid">
+                        <div class="field full">
+                            <label for="file">选择文件</label>
+                            <input id="file" name="file" type="file" accept=".txt,.pdf,.md,.docx" required />
+                        </div>
+                        <div class="field">
+                            <label>上传人账号</label>
+                            <input id="uploader_display_input" type="text" readonly />
+                        </div>
+                        <div class="field">
+                            <label>所属部门</label>
+                            <input id="dept_display_input" type="text" readonly />
+                        </div>
+                        <div class="field">
+                            <label for="secret_level">文档密级</label>
+                            <select id="secret_level" name="secret_level"></select>
+                        </div>
+                        <div class="field">
+                            <label>操作</label>
+                            <button type="submit">上传资料</button>
+                        </div>
+                    </div>
+                </form>
+
+                <div id="status" class="status">正在获取当前用户信息...</div>
+
+                <div class="actions">
+                    <a class="ghost" href="/admin" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);">返回管理页</a>
+                    <a class="ghost" href="/chat" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);">返回对话页</a>
                 </div>
-                <div class="field">
-                    <label for="user_id">上传人账号</label>
-                    <input id="user_id" name="user_id" type="text" placeholder="例如：sale_mgr_01" required />
-                </div>
-                <div class="field">
-                    <label for="dept_owner">所属部门</label>
-                    <input id="dept_owner" name="dept_owner" type="text" placeholder="例如：销售部" required />
-                </div>
-                <div class="field">
-                    <label for="secret_level">文档密级</label>
-                    <select id="secret_level" name="secret_level">
-                        <option value="0">0 - 公开</option>
-                        <option value="1" selected>1 - 普通</option>
-                        <option value="2">2 - 内部</option>
-                        <option value="3">3 - 机密</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>操作</label>
-                    <button type="submit">上传资料</button>
+
+                <div class="tips">
+                    <div>支持格式：<code>.txt</code>、<code>.pdf</code>、<code>.md</code>、<code>.docx</code></div>
+                    <div>上传人账号和部门由系统根据登录态自动确定，不可手动修改。</div>
+                    <div>密级下拉框只显示你权限范围内允许上传的选项。</div>
                 </div>
             </div>
-        </form>
-
-        <div id="status" class="status">请选择文件并填写权限信息后上传。</div>
-
-        <div class="actions">
-            <a class="ghost" href="/admin" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);">返回管理页</a>
-            <a class="ghost" href="/chat" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);">返回对话页</a>
-        </div>
-
-        <div class="tips">
-            <div>支持格式：<code>.txt</code>、<code>.pdf</code>、<code>.md</code>、<code>.docx</code></div>
-            <div>上传后系统会自动切片、向量化并写入权限标签。</div>
-            <div>注意：当前接口使用文件内容入库，建议上传清晰结构化的制度、说明和说明文档。</div>
         </div>
     </div>
 
     <script>
         const form = document.getElementById('uploadForm');
         const statusEl = document.getElementById('status');
+        const uploaderDisplay = document.getElementById('uploader_display');
+        const deptDisplay = document.getElementById('dept_display');
+        const roleDisplay = document.getElementById('role_display');
+        const maxSecretDisplay = document.getElementById('max_secret_display');
+        const uploaderInput = document.getElementById('uploader_display_input');
+        const deptInput = document.getElementById('dept_display_input');
+        const secretSelect = document.getElementById('secret_level');
+        const uploadHint = document.getElementById('upload_hint');
+        const token = localStorage.getItem('token');
+        const roleNames = ['普通员工', '业务骨干', '部门负责人', '高管/管理员'];
+        const secretLabels = ['0 - 公开', '1 - 普通', '2 - 内部', '3 - 机密'];
 
         function setStatus(message, type = '') {
             statusEl.className = 'status ' + type;
             statusEl.textContent = message;
         }
 
+        function buildSecretOptions(maxLevel) {
+            secretSelect.innerHTML = '';
+            for (let i = 0; i <= maxLevel; i++) {
+                const option = document.createElement('option');
+                option.value = String(i);
+                option.textContent = secretLabels[i];
+                secretSelect.appendChild(option);
+            }
+            secretSelect.value = String(Math.min(1, maxLevel));
+        }
+
+        async function loadUserInfo() {
+            if (!token) {
+                setStatus('未登录，请先登录后再上传。', 'error');
+                uploadHint.textContent = '请先登录系统后再进入上传页。';
+                return;
+            }
+            try {
+                const resp = await fetch('/api/user/info', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await resp.json();
+                if (resp.ok && data.user_id) {
+                    uploaderDisplay.textContent = `${data.user_id}（${data.username || ''}）`;
+                    deptDisplay.textContent = data.dept_name || '';
+                    roleDisplay.textContent = `${data.role_level} - ${roleNames[data.role_level] || '未知'}`;
+                    maxSecretDisplay.textContent = `${data.allow_max_secret} - ${secretLabels[data.allow_max_secret] || ''}`;
+                    uploaderInput.value = `${data.user_id}（${data.username || ''}）`;
+                    deptInput.value = data.dept_name || '';
+                    buildSecretOptions(data.allow_max_secret ?? 0);
+                    uploadHint.textContent = `当前账号最多可上传到 ${data.allow_max_secret} 级密级，系统会自动写入你的部门归属。`;
+                    setStatus('用户信息已加载，可以上传。');
+                } else {
+                    setStatus(data.msg || '获取用户信息失败', 'error');
+                }
+            } catch (err) {
+                setStatus('获取用户信息失败：' + err.message, 'error');
+            }
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!token) {
+                setStatus('未登录，请先登录。', 'error');
+                return;
+            }
             const formData = new FormData(form);
             setStatus('正在上传并入库，请稍候...');
 
             try {
                 const resp = await fetch('/doc/ingest', {
                     method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
                     body: formData,
                 });
                 const data = await resp.json();
                 if (resp.ok && data.code === 200) {
                     setStatus(`上传成功：${data.msg}\n文档ID：${data.doc_id}`, 'success');
                     form.reset();
-                    document.getElementById('secret_level').value = '1';
+                    await loadUserInfo();
                 } else {
                     const detail = data.detail ? `\n详情：${data.detail}` : '';
                     const errorType = data.error_type ? `\n错误类型：${data.error_type}` : '';
@@ -173,6 +267,8 @@
                 setStatus('上传失败：' + err.message, 'error');
             }
         });
+
+        loadUserInfo();
     </script>
 </body>
 </html>
