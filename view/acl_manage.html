@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ACL 管理页</title>
+  <style>
+    :root{--bg:linear-gradient(135deg,#0f172a,#1e293b);--card:rgba(15,23,42,.86);--border:rgba(148,163,184,.25);--text:#e2e8f0;--muted:#94a3b8;--primary:#38bdf8;--danger:#ef4444;--success:#22c55e}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding:24px}
+    .wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:360px 1fr;gap:20px} .panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
+    .top-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.btn,.link{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text);text-decoration:none;cursor:pointer}
+    .btn.primary{background:var(--primary);color:#082f49;border-color:transparent;font-weight:700}.btn.danger{background:transparent;color:var(--danger);border-color:rgba(239,68,68,.4)}
+    .hint,.legacy{padding:12px 14px;border-radius:12px;line-height:1.7;margin-top:14px}.hint{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd}.legacy{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fde68a}
+    .status{margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(15,23,42,.55);border:1px solid var(--border);color:var(--muted);white-space:pre-wrap}.status.success{color:var(--success)}.status.error{color:var(--danger)}
+    .doc-list{max-height:540px;overflow:auto;display:flex;flex-direction:column;gap:10px;margin-top:12px}.doc-item{border:1px solid var(--border);border-radius:14px;padding:14px;background:rgba(15,23,42,.45)}.doc-item.active{outline:2px solid rgba(56,189,248,.55)}
+    .row{display:grid;grid-template-columns:1fr 1fr 120px auto;gap:10px;align-items:center;margin-bottom:10px}.row input,.row select{width:100%;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.7);color:var(--text);padding:12px 14px}
+    .rulebox{margin-top:12px}.rule-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:var(--muted)}
+    .small{font-size:13px;color:var(--muted)} .footer{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
+    .searchbar{display:flex;gap:10px;margin-top:12px}.searchbar input{flex:1;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.7);color:var(--text);padding:12px 14px}
+    @media (max-width: 920px){.wrap{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h2 style="margin-top:0">ACL 管理</h2>
+      <div class="top-actions">
+        <a class="link" href="/view/upload.html">返回上传页</a>
+        <a class="link" href="/chat">返回问答页</a>
+        <a class="link" href="#" onclick="logout();return false;">退出系统</a>
+      </div>
+      <div class="legacy">说明：这里用于文档提交后或提交前，继续自由配置黑/白名单。</div>
+      <div class="searchbar">
+        <input id="docSearch" placeholder="按文档名 / doc_id / 部门 / 上传人搜索">
+        <button class="btn primary" type="button" onclick="loadDocs()">搜索文档</button>
+      </div>
+      <div class="searchbar">
+        <input id="aclSearch" placeholder="按 ACL 规则搜索，例如 deny / user:sale_staff_02">
+        <button class="btn primary" type="button" onclick="loadDocs()">搜索 ACL</button>
+      </div>
+      <div class="hint" id="hint">选择右侧文档后，可编辑其 ACL 规则。</div>
+      <div class="status" id="status">正在加载文档列表...</div>
+      <div class="doc-list" id="docList"></div>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0">文档 ACL 编辑器</h2>
+      <div class="small" id="docMeta">未选择文档</div>
+      <div class="rulebox">
+        <div class="rule-title"><span>ACL 规则</span><button class="btn" type="button" onclick="addRule()">新增规则</button></div>
+        <div id="ruleList"></div>
+      </div>
+      <div class="footer">
+        <button class="btn primary" type="button" onclick="saveAcl()">保存 ACL</button>
+        <button class="btn danger" type="button" onclick="clearAclForm()">清空编辑区</button>
+      </div>
+      <div class="legacy">提示：你可以同时用文档名和 ACL 规则筛选文档，便于快速定位。</div>
+    </div>
+  </div>
+
+<script>
+const token = localStorage.getItem('token');
+const docListEl = document.getElementById('docList');
+const ruleListEl = document.getElementById('ruleList');
+const statusEl = document.getElementById('status');
+const docMetaEl = document.getElementById('docMeta');
+let currentDoc = null;
+let docsCache = [];
+function logout(){ localStorage.removeItem('token'); location.href='/'; }
+function setStatus(msg,type=''){ statusEl.className='status '+type; statusEl.textContent=msg; }
+function clearAclForm(){ ruleListEl.innerHTML=''; addRule(); }
+function addRule(rule={subject_type:'user',subject_value:'',acl_type:'deny'}){ const row=document.createElement('div'); row.className='row'; row.innerHTML=`<select class="st"><option value="user">user</option><option value="dept">dept</option><option value="role">role</option></select><input class="sv" placeholder="如 sale_staff_02 / 销售部 / 2"><select class="at"><option value="allow">allow</option><option value="deny">deny</option></select><button class="btn danger" type="button">删除</button>`; row.querySelector('.st').value=rule.subject_type; row.querySelector('.sv').value=rule.subject_value; row.querySelector('.at').value=rule.acl_type; row.querySelector('button').onclick=()=>row.remove(); ruleListEl.appendChild(row); }
+function renderDocs(){ docListEl.innerHTML=''; docsCache.forEach(doc=>{ const el=document.createElement('div'); el.className='doc-item'+(currentDoc&&currentDoc.id===doc.id?' active':''); el.innerHTML=`<div><strong>${doc.original_filename||doc.doc_id}</strong></div><div class="small">doc_id: ${doc.doc_id}</div><div class="small">部门: ${doc.dept_owner} | 密级: ${doc.secret_level} | uploader: ${doc.uploader_id}</div><div class="small">ACL: ${doc.acl_summary||'无'}</div><div style="margin-top:8px"><button class="btn" type="button">编辑 ACL</button></div>`; el.querySelector('button').onclick=()=>selectDoc(doc); docListEl.appendChild(el); }); }
+function selectDoc(doc){ currentDoc=doc; docMetaEl.textContent=`doc_id=${doc.doc_id} | id=${doc.id} | 文件=${doc.original_filename||'-'}`; setStatus(`已选择文档：${doc.doc_id}`); renderDocs(); loadAcl(doc.id); }
+async function loadDocs(){ const kw=document.getElementById('docSearch').value.trim(); const aclKw=document.getElementById('aclSearch').value.trim(); const url='/api/acl/docs'+(kw||aclKw?`?${new URLSearchParams({keyword:kw,acl_rule:aclKw}).toString()}`:''); const resp=await fetch(url,{headers:{Authorization:`Bearer ${token}`}}); const data=await resp.json(); if(!resp.ok||data.code!==200){ setStatus(data.msg||'加载文档失败','error'); return; } docsCache=data.data||[]; setStatus(`共加载 ${docsCache.length} 个文档`); renderDocs(); if(docsCache.length){ selectDoc(docsCache[0]); } else { clearAclForm(); } }
+async function loadAcl(docPermissionId){ ruleListEl.innerHTML=''; const resp=await fetch(`/api/acl/${docPermissionId}`,{headers:{Authorization:`Bearer ${token}`}}); const data=await resp.json(); if(!resp.ok||data.code!==200){ setStatus(data.msg||'加载 ACL 失败','error'); addRule(); return; } const items=data.data||[]; if(!items.length){ addRule(); } else { items.forEach(addRule); } }
+async function saveAcl(){ if(!currentDoc){ setStatus('请先选择文档','error'); return; } const rows=[...ruleListEl.querySelectorAll('.row')].map(r=>({subject_type:r.querySelector('.st').value,subject_value:r.querySelector('.sv').value.trim(),acl_type:r.querySelector('.at').value})).filter(x=>x.subject_value); const resp=await fetch(`/api/acl/${currentDoc.id}`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({items:rows})}); const data=await resp.json(); if(resp.ok&&data.code===200){ setStatus('ACL 已保存','success'); await loadAcl(currentDoc.id); } else { setStatus(data.msg||'保存失败','error'); } }
+if(!token){ location.href='/'; }
+loadDocs();
+</script>
+</body>
+</html>

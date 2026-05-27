@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ACL 命中日志</title>
+  <style>
+    :root{--bg:linear-gradient(135deg,#0f172a,#1e293b);--card:rgba(15,23,42,.86);--border:rgba(148,163,184,.25);--text:#e2e8f0;--muted:#94a3b8;--primary:#38bdf8;--success:#22c55e;--danger:#ef4444}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding:24px}
+    .wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:320px 1fr;gap:20px} .panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
+    .top-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.link{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text);text-decoration:none}
+    .hint,.legacy{padding:12px 14px;border-radius:12px;line-height:1.7;margin-top:14px}.hint{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd}.legacy{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fde68a}
+    .status{margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(15,23,42,.55);border:1px solid var(--border);color:var(--muted);white-space:pre-wrap}
+    .logbox{max-height:720px;overflow:auto;white-space:pre-wrap;background:rgba(2,6,23,.6);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;line-height:1.6}
+    select,button,input{width:100%;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.7);color:var(--text);padding:12px 14px;font-size:15px}
+    button{cursor:pointer;background:var(--primary);color:#082f49;border-color:transparent;font-weight:700}.controls{display:grid;gap:10px}.entry{padding:10px 12px;border-bottom:1px solid rgba(148,163,184,.15)} .entry:last-child{border-bottom:none}
+    @media (max-width: 920px){.wrap{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h2 style="margin-top:0">ACL 日志</h2>
+      <div class="top-actions">
+        <a class="link" href="/view/upload.html">返回上传页</a>
+        <a class="link" href="/view/acl_manage.html">ACL 管理页</a>
+        <a class="link" href="/chat">返回问答页</a>
+      </div>
+      <div class="legacy">遗留问题：文档脱敏后再入库、Chroma 更强前置过滤，后续再处理。</div>
+      <div class="hint">这里展示检索链路中的 ACL 命中情况。后续可接入更完整的审计事件。</div>
+      <div class="status" id="status">正在加载日志...</div>
+      <div class="logbox" id="logBox"></div>
+    </div>
+    <div class="panel">
+      <h2 style="margin-top:0">日志筛选</h2>
+      <div class="controls">
+        <input id="keyword" placeholder="按关键字过滤，例如 deny / allow / doc_id">
+        <button onclick="reloadLogs()">刷新日志</button>
+      </div>
+      <div class="legacy">说明：日志数据来自后端 `/api/acl/logs`，建议按需保留最近 200 条。</div>
+    </div>
+  </div>
+<script>
+const token = localStorage.getItem('token');
+const logBox = document.getElementById('logBox'); const statusEl = document.getElementById('status'); const keywordEl = document.getElementById('keyword');
+function setStatus(msg){statusEl.textContent=msg;}
+async function reloadLogs(){ const kw=keywordEl.value.trim(); const url='/api/acl/logs'+(kw?`?keyword=${encodeURIComponent(kw)}`:''); const resp=await fetch(url,{headers:{Authorization:`Bearer ${token}`}}); const data=await resp.json(); if(!resp.ok||data.code!==200){ setStatus(data.msg||'加载失败'); return; } const items=data.data||[]; setStatus(`共 ${items.length} 条日志`); logBox.innerHTML=items.map(x=>`<div class="entry">${escapeHtml(x)}</div>`).join('') || '暂无日志'; }
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
+if(!token) location.href='/'; reloadLogs();
+</script>
+</body>
+</html>

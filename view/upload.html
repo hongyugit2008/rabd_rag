@@ -5,258 +5,78 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>知识库资料上传</title>
     <style>
-        :root {
-            --bg: linear-gradient(135deg, #0f172a, #1e293b);
-            --card: rgba(15, 23, 42, 0.86);
-            --border: rgba(148, 163, 184, 0.25);
-            --text: #e2e8f0;
-            --muted: #94a3b8;
-            --primary: #38bdf8;
-            --primary-hover: #0ea5e9;
-            --success: #22c55e;
-            --danger: #ef4444;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            display: grid;
-            place-items: center;
-            padding: 24px;
-        }
-        .card { width: min(1200px, 100%); background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,0.35); backdrop-filter: blur(10px); }
-        h1 { margin: 0 0 8px; font-size: 28px; }
-        p.sub { margin: 0 0 20px; color: var(--muted); }
-        .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
-        .panel { border: 1px solid var(--border); border-radius: 16px; background: rgba(15, 23, 42, 0.45); padding: 18px; }
-        .panel h2 { margin: 0 0 12px; font-size: 18px; }
-        .user-item { margin-bottom: 10px; color: var(--muted); line-height: 1.6; }
-        .user-item strong { color: var(--text); }
-        .hint { padding: 12px 14px; border-radius: 12px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.2); color: #bae6fd; line-height: 1.7; margin-top: 14px; }
-        .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-        .field { display: flex; flex-direction: column; gap: 8px; }
-        .field.full { grid-column: 1 / -1; }
-        label { font-size: 14px; color: #cbd5e1; }
-        input, select, button, textarea { border-radius: 12px; border: 1px solid var(--border); background: rgba(15, 23, 42, 0.7); color: var(--text); padding: 12px 14px; font-size: 15px; outline: none; }
-        textarea { min-height: 90px; resize: vertical; }
-        input[type="file"] { padding: 10px 14px; }
-        input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2); }
-        .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
-        button { cursor: pointer; background: var(--primary); border-color: transparent; color: #082f49; font-weight: 700; min-width: 140px; }
-        button:hover { background: var(--primary-hover); }
-        .ghost { background: transparent; color: var(--text); border-color: var(--border); }
-        .status { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border); color: var(--muted); white-space: pre-wrap; }
-        .status.success { color: var(--success); }
-        .status.error { color: var(--danger); }
-        .tips { margin-top: 18px; color: var(--muted); font-size: 14px; line-height: 1.7; }
-        a { color: var(--primary); text-decoration: none; }
-        .top-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px; }
-        .action-btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; border-radius:12px; border:1px solid var(--border); background: rgba(15, 23, 42, 0.55); color: var(--text); }
-        .acl-list { display:flex; flex-direction:column; gap:10px; }
-        .acl-row { display:grid; grid-template-columns: 110px 1fr 100px 60px; gap:10px; align-items:center; }
-        .acl-row button { min-width: auto; padding: 10px 12px; }
-        @media (max-width: 920px) { .layout { grid-template-columns: 1fr; } .acl-row { grid-template-columns: 1fr; } }
-        @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+        :root { --bg: linear-gradient(135deg, #0f172a, #1e293b); --card: rgba(15, 23, 42, 0.86); --border: rgba(148, 163, 184, 0.25); --text: #e2e8f0; --muted: #94a3b8; --primary: #38bdf8; --success: #22c55e; --danger: #ef4444; }
+        *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding:24px}
+        .card{width:min(1100px,100%);margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;backdrop-filter:blur(10px)}
+        .top-actions,.bottom-actions{display:flex;gap:10px;flex-wrap:wrap}.action-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text);text-decoration:none}
+        .layout{display:grid;grid-template-columns:320px 1fr;gap:20px;margin-top:18px}.panel{border:1px solid var(--border);border-radius:16px;background:rgba(15,23,42,.45);padding:18px}
+        .hint,.legacy{padding:12px 14px;border-radius:12px;line-height:1.7;margin-top:14px}.hint{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd}.legacy{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fde68a}
+        .logbox{margin-top:12px;max-height:260px;overflow:auto;white-space:pre-wrap;background:rgba(2,6,23,.6);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;line-height:1.6}
+        .status{margin-top:16px;padding:12px 14px;border-radius:12px;background:rgba(15,23,42,.55);border:1px solid var(--border);color:var(--muted);white-space:pre-wrap}.status.success{color:var(--success)}.status.error{color:var(--danger)}
+        .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.field{display:flex;flex-direction:column;gap:8px}.field.full{grid-column:1/-1} label{font-size:14px;color:#cbd5e1}
+        input,select,button,textarea{border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.7);color:var(--text);padding:12px 14px;font-size:15px;outline:none} textarea{min-height:120px;resize:vertical}
+        .acl-row{display:grid;grid-template-columns:1fr 1fr 120px auto;gap:10px;align-items:center;margin-bottom:10px}.acl-row input,.acl-row select{width:100%}.danger-btn{background:transparent;color:var(--danger);border-color:rgba(239,68,68,.4)}
+        button{cursor:pointer;background:var(--primary);border-color:transparent;color:#082f49;font-weight:700}.add-btn{margin-top:10px;background:transparent;color:var(--text);border-color:var(--border)}
+        @media (max-width: 920px){.layout{grid-template-columns:1fr}.acl-row{grid-template-columns:1fr 1fr;}} @media (max-width: 720px){.grid{grid-template-columns:1fr}}
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>知识库资料上传</h1>
-        <p class="sub">上传文档并绑定权限信息，供 RAG 检索使用。</p>
-        <div class="top-actions">
-            <a class="action-btn" href="/chat">返回对话页</a>
-            <a class="action-btn" href="/admin">返回管理页</a>
-            <a class="action-btn" href="#" onclick="logout(); return false;">退出系统</a>
+<div class="card">
+    <h1>知识库资料上传</h1>
+    <p class="sub">上传文档并绑定权限信息，供 RAG 检索使用。</p>
+    <div class="top-actions">
+        <a class="action-btn" href="/chat">返回对话页</a>
+        <a class="action-btn" href="/admin">返回管理页</a>
+        <a class="action-btn" href="#" onclick="logout();return false;">退出系统</a>
+    </div>
+    <div class="layout">
+        <div class="panel">
+            <h2>当前用户信息</h2>
+            <div class="legacy">遗留问题：Chroma 前置更强过滤、文档脱敏后再入库等优化，后续再处理。</div>
+            <div class="hint" id="upload_hint">系统将根据你的登录身份自动固定上传人和所属部门，密级选项也会按你的权限自动限制。</div>
+            <div class="status" id="status">正在获取当前用户信息...</div>
+            <div class="logbox" id="aclLogBox">ACL 命中日志会显示在这里。</div>
         </div>
-
-        <div class="layout" style="margin-top:18px;">
-            <div class="panel">
-                <h2>当前用户信息</h2>
-                <div class="user-item"><strong>账号</strong><br><span id="uploader_display">加载中...</span></div>
-                <div class="user-item"><strong>部门</strong><br><span id="dept_display">加载中...</span></div>
-                <div class="user-item"><strong>角色等级</strong><br><span id="role_display">加载中...</span></div>
-                <div class="user-item"><strong>可上传最高密级</strong><br><span id="max_secret_display">加载中...</span></div>
-                <div class="hint" id="upload_hint">系统将根据你的登录身份自动固定上传人和所属部门，密级选项也会按你的权限自动限制。</div>
-            </div>
-
-            <div class="panel">
-                <form id="uploadForm">
-                    <div class="grid">
-                        <div class="field full">
-                            <label for="file">选择文件</label>
-                            <input id="file" name="file" type="file" accept=".txt,.pdf,.md,.docx" required />
-                        </div>
-                        <div class="field">
-                            <label>上传人账号</label>
-                            <input id="uploader_display_input" type="text" readonly />
-                        </div>
-                        <div class="field">
-                            <label>所属部门</label>
-                            <input id="dept_display_input" type="text" readonly />
-                        </div>
-                        <div class="field">
-                            <label for="secret_level">文档密级</label>
-                            <select id="secret_level" name="secret_level"></select>
-                        </div>
-                        <div class="field">
-                            <label>ACL 规则（可选）</label>
-                            <textarea id="acl_preview" placeholder="默认可留空。这里支持一行一条：user,sale_staff_02,allow"></textarea>
-                        </div>
-                    </div>
-
-                    <div class="panel" style="margin-top:16px;">
-                        <h2 style="margin-top:0;">ACL 规则编辑</h2>
-                        <div class="acl-list" id="acl_list"></div>
-                        <div class="actions">
-                            <button type="button" id="addAclBtn">新增 ACL 规则</button>
-                        </div>
-                    </div>
-
-                    <div class="actions">
-                        <button type="submit">上传资料</button>
-                    </div>
-                </form>
-
-                <div id="status" class="status">正在获取当前用户信息...</div>
-
-                <div class="tips">
-                    <div>支持格式：<code>.txt</code>、<code>.pdf</code>、<code>.md</code>、<code>.docx</code></div>
-                    <div>ACL 规则支持：<code>user / dept / role</code> + <code>allow / deny</code></div>
-                    <div>如果不配置 ACL，则默认按部门 + 密级 + 角色规则控制访问。</div>
+        <div class="panel">
+            <form id="uploadForm">
+                <div class="grid">
+                    <div class="field full"><label for="file">选择文件</label><input id="file" name="file" type="file" accept=".txt,.pdf,.md,.docx" required /></div>
+                    <div class="field"><label>上传人账号</label><input id="uploader_display_input" type="text" readonly /></div>
+                    <div class="field"><label>所属部门</label><input id="dept_display_input" type="text" readonly /></div>
+                    <div class="field"><label for="secret_level">文档密级</label><select id="secret_level" name="secret_level"></select></div>
+                    <div class="field"><label>操作</label><button type="submit">上传资料</button></div>
                 </div>
+                <h3 style="margin:18px 0 10px;">ACL 规则</h3>
+                <div id="aclList"></div>
+                <button type="button" class="add-btn" onclick="addAclRow()">新增 ACL 规则</button>
+            </form>
+            <div class="bottom-actions" style="margin-top:18px;">
+                <a class="action-btn" href="#" onclick="logout();return false;">退出系统</a>
             </div>
+            <div class="legacy">提示：黑名单（deny）优先于白名单（allow）。上传后可继续在 ACL 管理页调整。</div>
         </div>
     </div>
+</div>
+<script>
+const token = localStorage.getItem('token');
+const roleNames = ['普通员工','业务骨干','部门负责人','高管/管理员'];
+const secretLabels = ['0 - 公开','1 - 普通','2 - 内部','3 - 机密'];
+const aclList = document.getElementById('aclList');
+const aclLogBox = document.getElementById('aclLogBox');
+const secretSelect = document.getElementById('secret_level');
+const statusEl = document.getElementById('status');
+function logout(){ localStorage.removeItem('token'); location.href='/'; }
+function setStatus(m,t=''){statusEl.className='status '+t;statusEl.textContent=m;}
+function addAclRow(){ const row=document.createElement('div'); row.className='acl-row'; row.innerHTML=`<select class="acl-subject-type"><option value="user">user</option><option value="dept">dept</option><option value="role">role</option></select><input class="acl-subject-value" placeholder="如 sale_staff_02 / 销售部 / 2"><select class="acl-type"><option value="allow">allow</option><option value="deny">deny</option></select><button type="button" class="danger-btn">删除</button>`; row.querySelector('button').onclick=()=>row.remove(); aclList.appendChild(row); }
+function buildSecretOptions(maxLevel){ secretSelect.innerHTML=''; for(let i=0;i<=maxLevel;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=secretLabels[i]; secretSelect.appendChild(o);} secretSelect.value=String(Math.min(1,maxLevel)); }
+async function loadUserInfo(){ if(!token){setStatus('未登录，请先登录后再上传。','error');return;} const resp=await fetch('/api/user/info',{headers:{Authorization:`Bearer ${token}`}}); const data=await resp.json(); if(resp.ok&&data.user_id){document.getElementById('uploader_display_input').value=`${data.user_id}（${data.username||''}）`;document.getElementById('dept_display_input').value=data.dept_name||'';document.getElementById('upload_hint').textContent=`当前账号 ${data.user_id}，部门 ${data.dept_name||''}，最高可上传密级 ${data.allow_max_secret}。`;buildSecretOptions(data.allow_max_secret??0);setStatus('用户信息已加载，可以上传。');} }
+function collectAclItems(){ return [...aclList.querySelectorAll('.acl-row')].map(row=>({subject_type:row.querySelector('.acl-subject-type').value,subject_value:row.querySelector('.acl-subject-value').value.trim(),acl_type:row.querySelector('.acl-type').value})).filter(x=>x.subject_value); }
+function renderAclLogs(lines){ aclLogBox.textContent = lines.length?lines.join('\n'):'暂无 ACL 命中日志'; }
+async function submitUpload(e){ e.preventDefault(); if(!token){setStatus('未登录，请先登录。','error');return;} const fileInput=document.getElementById('file'); if(!fileInput.files.length){setStatus('请先选择要上传的文件。','error');return;} const aclItems=collectAclItems(); const fd=new FormData(); fd.append('file',fileInput.files[0]); fd.append('secret_level',document.getElementById('secret_level').value); fd.append('acl_subject_types',aclItems.map(x=>x.subject_type).join(',')); fd.append('acl_subject_values',aclItems.map(x=>x.subject_value).join(',')); fd.append('acl_types',aclItems.map(x=>x.acl_type).join(',')); setStatus('正在上传并入库，请稍候...'); const resp=await fetch('/doc/ingest',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd}); const text=await resp.text(); let data; try{data=JSON.parse(text)}catch{throw new Error(text||'服务返回了非JSON内容')} if(resp.ok&&data.code===200){ setStatus(`上传成功：${data.msg}\n文档ID：${data.doc_id}\n临时文件：${data.temp_file_path||''}`,'success'); } else { const detail=data.detail?`\n详情：${data.detail}`:''; const errorType=data.error_type?`\n错误类型：${data.error_type}`:''; setStatus(`${data.msg||'上传失败'}${errorType}${detail}`,'error'); if(/重复|已存在/.test(data.msg||'')) aclLogBox.textContent=`重复提示：${data.msg}\n${data.detail||''}`; } }
 
-    <script>
-        const form = document.getElementById('uploadForm');
-        const statusEl = document.getElementById('status');
-        const uploaderDisplay = document.getElementById('uploader_display');
-        const deptDisplay = document.getElementById('dept_display');
-        const roleDisplay = document.getElementById('role_display');
-        const maxSecretDisplay = document.getElementById('max_secret_display');
-        const uploaderInput = document.getElementById('uploader_display_input');
-        const deptInput = document.getElementById('dept_display_input');
-        const secretSelect = document.getElementById('secret_level');
-        const uploadHint = document.getElementById('upload_hint');
-        const aclList = document.getElementById('acl_list');
-        const aclPreview = document.getElementById('acl_preview');
-        const addAclBtn = document.getElementById('addAclBtn');
-        const token = localStorage.getItem('token');
-        const roleNames = ['普通员工', '业务骨干', '部门负责人', '高管/管理员'];
-        const secretLabels = ['0 - 公开', '1 - 普通', '2 - 内部', '3 - 机密'];
-
-        function logout() { localStorage.removeItem('token'); location.href = '/'; }
-        function setStatus(message, type = '') { statusEl.className = 'status ' + type; statusEl.textContent = message; }
-        function buildSecretOptions(maxLevel) {
-            secretSelect.innerHTML = '';
-            for (let i = 0; i <= maxLevel; i++) {
-                const option = document.createElement('option');
-                option.value = String(i);
-                option.textContent = secretLabels[i];
-                secretSelect.appendChild(option);
-            }
-            secretSelect.value = String(Math.min(1, maxLevel));
-        }
-        function renderAclRows(values = []) {
-            aclList.innerHTML = '';
-            const rows = values.length ? values : [['user', '', 'allow']];
-            rows.forEach(([subject_type, subject_value, acl_type]) => addAclRow(subject_type, subject_value, acl_type));
-            syncAclPreview();
-        }
-        function addAclRow(subject_type = 'user', subject_value = '', acl_type = 'allow') {
-            const row = document.createElement('div');
-            row.className = 'acl-row';
-            row.innerHTML = `
-                <select class="acl-subject-type">
-                    <option value="user">user</option>
-                    <option value="dept">dept</option>
-                    <option value="role">role</option>
-                </select>
-                <input class="acl-subject-value" type="text" placeholder="如 sale_staff_02 / 销售部 / 2" />
-                <select class="acl-type">
-                    <option value="allow">allow</option>
-                    <option value="deny">deny</option>
-                </select>
-                <button type="button" class="ghost acl-remove">删除</button>
-            `;
-            aclList.appendChild(row);
-            row.querySelector('.acl-subject-type').value = subject_type;
-            row.querySelector('.acl-subject-value').value = subject_value;
-            row.querySelector('.acl-type').value = acl_type;
-            row.querySelector('.acl-remove').addEventListener('click', () => { row.remove(); syncAclPreview(); });
-            row.querySelectorAll('input,select').forEach(el => el.addEventListener('input', syncAclPreview));
-            syncAclPreview();
-        }
-        function syncAclPreview() {
-            const lines = [];
-            aclList.querySelectorAll('.acl-row').forEach(row => {
-                const st = row.querySelector('.acl-subject-type').value.trim();
-                const sv = row.querySelector('.acl-subject-value').value.trim();
-                const at = row.querySelector('.acl-type').value.trim();
-                if (st && sv && at) lines.push(`${st},${sv},${at}`);
-            });
-            aclPreview.value = lines.join('\n');
-        }
-        async function loadUserInfo() {
-            if (!token) { setStatus('未登录，请先登录后再上传。', 'error'); uploadHint.textContent = '请先登录系统后再进入上传页。'; return; }
-            try {
-                const resp = await fetch('/api/user/info', { headers: { Authorization: `Bearer ${token}` } });
-                const data = await resp.json();
-                if (resp.ok && data.user_id) {
-                    uploaderDisplay.textContent = `${data.user_id}（${data.username || ''}）`;
-                    deptDisplay.textContent = data.dept_name || '';
-                    roleDisplay.textContent = `${data.role_level} - ${roleNames[data.role_level] || '未知'}`;
-                    maxSecretDisplay.textContent = `${data.allow_max_secret} - ${secretLabels[data.allow_max_secret] || ''}`;
-                    uploaderInput.value = `${data.user_id}（${data.username || ''}）`;
-                    deptInput.value = data.dept_name || '';
-                    buildSecretOptions(data.allow_max_secret ?? 0);
-                    uploadHint.textContent = `当前账号最多可上传到 ${data.allow_max_secret} 级密级，系统会自动写入你的部门归属。`;
-                    setStatus('用户信息已加载，可以上传。');
-                } else {
-                    setStatus(data.msg || '获取用户信息失败', 'error');
-                }
-            } catch (err) { setStatus('获取用户信息失败：' + err.message, 'error'); }
-        }
-        addAclBtn.addEventListener('click', () => addAclRow());
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!token) { setStatus('未登录，请先登录。', 'error'); return; }
-            const fileInput = document.getElementById('file');
-            if (!fileInput.files.length) { setStatus('请先选择要上传的文件。', 'error'); return; }
-            syncAclPreview();
-            const aclLines = aclPreview.value.split('\n').map(x => x.trim()).filter(Boolean);
-            const aclParts = aclLines.map(line => line.split(',').map(s => s.trim()));
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('secret_level', secretSelect.value);
-            formData.append('acl_subject_types', aclParts.map(x => x[0]).join(','));
-            formData.append('acl_subject_values', aclParts.map(x => x[1]).join(','));
-            formData.append('acl_types', aclParts.map(x => x[2]).join(','));
-            setStatus('正在上传并入库，请稍候...');
-            try {
-                const resp = await fetch('/doc/ingest', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
-                const text = await resp.text();
-                let data; try { data = JSON.parse(text); } catch { throw new Error(text || '服务返回了非JSON内容'); }
-                if (resp.ok && data.code === 200) {
-                    setStatus(`上传成功：${data.msg}\n文档ID：${data.doc_id}\n临时文件：${data.temp_file_path || ''}`, 'success');
-                    form.reset();
-                    renderAclRows();
-                    await loadUserInfo();
-                } else {
-                    const detail = data.detail ? `\n详情：${data.detail}` : '';
-                    const errorType = data.error_type ? `\n错误类型：${data.error_type}` : '';
-                    const isDuplicate = /重复|已存在/.test(data.msg || '') || /重复|已存在/.test(data.detail || '');
-                    const duplicateTip = isDuplicate ? '\n提示：该文档已经上传过了，不会重复切片写入。' : '';
-                    setStatus(`${data.msg || '上传失败'}${errorType}${detail}${duplicateTip}`, 'error');
-                }
-            } catch (err) { setStatus('上传失败：' + err.message, 'error'); }
-        });
-        renderAclRows();
-        loadUserInfo();
-    </script>
+document.getElementById('uploadForm').addEventListener('submit', submitUpload);
+addAclRow(); loadUserInfo();
+renderAclLogs(['ACL 命中日志：', '1) deny 优先', '2) allow 次之', '3) no_acl 默认放行']);
+</script>
 </body>
 </html>

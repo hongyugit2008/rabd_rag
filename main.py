@@ -2,9 +2,10 @@ from fastapi import FastAPI, Depends, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 # 导入原有业务模块
-from database import get_db, create_tables, UserRbac
+from database import get_db, create_tables, UserRbac, DocPermission, DocAcl
 from doc_ingest import ingest_doc_with_rbac
 from rag_service import rag_chat
 
@@ -19,6 +20,10 @@ import logging
 import fix_uuid  # 必须是最第一行
 
 logger = logging.getLogger(__name__)
+
+
+class AclSavePayload(BaseModel):
+    items: list
 
 
 # 初始化数据库表
@@ -45,6 +50,14 @@ async def go_chat():
 async def go_admin():
     return FileResponse("view/admin.html")
 
+@app.get("/acl/manage")
+async def go_acl_manage():
+    return FileResponse("view/acl_manage.html")
+
+@app.get("/acl/logs")
+async def go_acl_logs():
+    return FileResponse("view/acl_logs.html")
+
 # ============ 文档入库接口（保留不变） ============
 @app.get("/api/user/me")
 async def get_me(
@@ -65,6 +78,95 @@ async def get_me(
             "allow_max_secret": allow_max_secret,
         },
     })
+
+@app.get("/api/acl/docs")
+async def list_acl_docs(
+    keyword: str = "",
+    acl_rule: str = "",
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user)
+):
+    query = db.query(DocPermission)
+    if keyword:
+        kw = f"%{keyword.strip()}%"
+        query = query.filter(
+            (DocPermission.doc_id.like(kw)) |
+            (DocPermission.original_filename.like(kw)) |
+            (DocPermission.dept_owner.like(kw)) |
+            (DocPermission.uploader_id.like(kw))
+        )
+    docs = query.order_by(DocPermission.create_time.desc()).all()
+    results = []
+    acl_kw = acl_rule.strip().lower()
+    for d in docs:
+        acl_items = db.query(DocAcl).filter(DocAcl.doc_permission_id == d.id).all()
+        acl_text = " | ".join([f"{a.subject_type}:{a.subject_value}:{a.acl_type}" for a in acl_items])
+        if acl_kw and acl_kw not in acl_text.lower():
+            continue
+        results.append({
+            "id": d.id,
+            "doc_id": d.doc_id,
+            "dept_owner": d.dept_owner,
+            "secret_level": d.secret_level,
+            "uploader_id": d.uploader_id,
+            "original_filename": d.original_filename,
+            "acl_summary": acl_text,
+        })
+    return {"code": 200, "data": results}
+
+@app.get("/api/acl/{doc_permission_id}")
+async def get_acl_items(
+    doc_permission_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user)
+):
+    items = db.query(DocAcl).filter(DocAcl.doc_permission_id == doc_permission_id).all()
+    return {"code": 200, "data": [
+        {
+            "subject_type": i.subject_type,
+            "subject_value": i.subject_value,
+            "acl_type": i.acl_type,
+        } for i in items
+    ]}
+
+@app.post("/api/acl/{doc_permission_id}")
+async def save_acl_items(
+    doc_permission_id: int,
+    payload: AclSavePayload,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user)
+):
+    doc = db.query(DocPermission).filter(DocPermission.id == doc_permission_id).first()
+    if not doc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "文档不存在"})
+
+    db.query(DocAcl).filter(DocAcl.doc_permission_id == doc_permission_id).delete()
+    rows = []
+    for item in payload.items:
+        st = (item.get("subject_type") or "").strip()
+        sv = (item.get("subject_value") or "").strip()
+        at = (item.get("acl_type") or "").strip()
+        if not st or not sv or at not in {"allow", "deny"}:
+            continue
+        rows.append(DocAcl(doc_permission_id=doc_permission_id, subject_type=st, subject_value=sv, acl_type=at))
+    if rows:
+        db.add_all(rows)
+    db.commit()
+    return {"code": 200, "msg": "ACL 保存成功", "count": len(rows)}
+
+@app.get("/api/acl/logs")
+async def get_acl_logs(
+    keyword: str = "",
+    user_id: str = Depends(get_current_user)
+):
+    log_path = os.path.abspath("./acl_audit.log")
+    if not os.path.exists(log_path):
+        return {"code": 200, "data": []}
+    with open(log_path, "r", encoding="utf-8") as f:
+        lines = [line.rstrip("\n") for line in f.readlines()]
+    if keyword:
+        lines = [line for line in lines if keyword.lower() in line.lower()]
+    return {"code": 200, "data": lines[-200:]}
 
 @app.post("/doc/ingest")
 async def doc_ingest(
