@@ -7,7 +7,8 @@
   <style>
     :root{--bg:linear-gradient(135deg,#0f172a,#1e293b);--card:rgba(15,23,42,.86);--border:rgba(148,163,184,.25);--text:#e2e8f0;--muted:#94a3b8;--primary:#38bdf8;--danger:#ef4444;--success:#22c55e}
     *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding:24px}
-    .wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:360px 1fr;gap:20px} .panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
+    .workspace{position:fixed;left:0;top:0;height:100vh;width:280px;background:rgba(15,23,42,.95);border-right:1px solid var(--border);padding:16px;transform:translateX(0);transition:transform .25s ease;z-index:30;overflow:auto}.workspace.collapsed{transform:translateX(-100%)}.workspace-toggle{position:fixed;left:8px;top:12px;z-index:40}
+    .wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:360px 1fr;gap:20px}.panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
     .top-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.btn,.link{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text);text-decoration:none;cursor:pointer}
     .btn.primary{background:var(--primary);color:#082f49;border-color:transparent;font-weight:700}.btn.danger{background:transparent;color:var(--danger);border-color:rgba(239,68,68,.4)}
     .hint,.legacy{padding:12px 14px;border-radius:12px;line-height:1.7;margin-top:14px}.hint{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd}.legacy{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fde68a}
@@ -17,16 +18,28 @@
     .rulebox{margin-top:12px}.rule-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:var(--muted)}
     .small{font-size:13px;color:var(--muted)} .footer{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
     .searchbar{display:flex;gap:10px;margin-top:12px}.searchbar input{flex:1;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.7);color:var(--text);padding:12px 14px}
-    @media (max-width: 920px){.wrap{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}}
+    @media (max-width: 920px){.wrap{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.workspace{width:250px}.workspace-toggle{left:auto;right:12px}}
   </style>
 </head>
 <body>
-  <div class="wrap">
+<button class="workspace-toggle btn" onclick="toggleWorkspace()">工作区</button>
+<aside id="workspace" class="workspace">
+  <strong>工作区</strong>
+  <div class="top-actions" style="margin-top:12px;flex-direction:column;align-items:stretch;">
+    <a class="link" href="/chat">1、会话窗口 /chat</a>
+    <a class="link" href="/view/upload.html">2、资料上传 view/upload.html</a>
+    <a class="link" href="/acl/manage">3、ACL管理：以文档人身份查询其设置的ACL</a>
+    <a class="link" href="/personal.html">4、个人信息</a>
+  </div>
+  <div class="legacy">遗留问题：Chroma 前置更强过滤、文档脱敏后再入库。</div>
+</aside>
+  <div class="wrap" id="mainWrap">
     <div class="panel">
       <h2 style="margin-top:0">ACL 管理</h2>
       <div class="top-actions">
         <a class="link" href="/view/upload.html">返回上传页</a>
         <a class="link" href="/chat">返回问答页</a>
+        <a class="link" href="/personal.html">个人信息</a>
         <a class="link" href="#" onclick="logout();return false;">退出系统</a>
       </div>
       <div class="legacy">说明：这里用于文档提交后或提交前，继续自由配置黑/白名单。</div>
@@ -57,7 +70,6 @@
       <div class="legacy">提示：你可以同时用文档名和 ACL 规则筛选文档，便于快速定位。</div>
     </div>
   </div>
-
 <script>
 const token = localStorage.getItem('token');
 const docListEl = document.getElementById('docList');
@@ -67,6 +79,7 @@ const docMetaEl = document.getElementById('docMeta');
 let currentDoc = null;
 let docsCache = [];
 function logout(){ localStorage.removeItem('token'); location.href='/'; }
+function toggleWorkspace(){ document.getElementById('workspace').classList.toggle('collapsed'); }
 function setStatus(msg,type=''){ statusEl.className='status '+type; statusEl.textContent=msg; }
 function clearAclForm(){ ruleListEl.innerHTML=''; addRule(); }
 function addRule(rule={subject_type:'user',subject_value:'',acl_type:'deny'}){ const row=document.createElement('div'); row.className='row'; row.innerHTML=`<select class="st"><option value="user">user</option><option value="dept">dept</option><option value="role">role</option></select><input class="sv" placeholder="如 sale_staff_02 / 销售部 / 2"><select class="at"><option value="allow">allow</option><option value="deny">deny</option></select><button class="btn danger" type="button">删除</button>`; row.querySelector('.st').value=rule.subject_type; row.querySelector('.sv').value=rule.subject_value; row.querySelector('.at').value=rule.acl_type; row.querySelector('button').onclick=()=>row.remove(); ruleListEl.appendChild(row); }

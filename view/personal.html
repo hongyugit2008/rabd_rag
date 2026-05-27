@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>个人信息</title>
+  <style>
+    :root{--bg:linear-gradient(135deg,#0f172a,#1e293b);--card:rgba(15,23,42,.86);--border:rgba(148,163,184,.25);--text:#e2e8f0;--muted:#94a3b8;--primary:#38bdf8;--danger:#ef4444;--success:#22c55e}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding:24px}
+    .workspace{position:fixed;left:0;top:0;height:100vh;width:280px;background:rgba(15,23,42,.95);border-right:1px solid var(--border);padding:16px;transform:translateX(0);transition:transform .25s ease;z-index:30;overflow:auto}.workspace.collapsed{transform:translateX(-100%)}.workspace-toggle{position:fixed;left:8px;top:12px;z-index:40}
+    .workspace .nav{display:flex;flex-direction:column;gap:8px}.workspace .nav a{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(148,163,184,.15);color:var(--text);text-decoration:none}
+    .wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:340px 1fr;gap:20px}.panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
+    .top-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.link,.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text);text-decoration:none;cursor:pointer}
+    .btn.primary{background:var(--primary);color:#082f49;border-color:transparent;font-weight:700}.btn.danger{background:transparent;color:var(--danger);border-color:rgba(239,68,68,.4)}
+    .hint,.legacy{padding:12px 14px;border-radius:12px;line-height:1.7;margin-top:14px}.hint{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd}.legacy{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fde68a}
+    .status{margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(15,23,42,.55);border:1px solid var(--border);color:var(--muted);white-space:pre-wrap}.status.success{color:var(--success)}.status.error{color:var(--danger)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:8px} label{font-size:14px;color:#cbd5e1}
+    input,select{border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.7);color:var(--text);padding:12px 14px;font-size:15px} .table{margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:540px;overflow:auto}
+    .item{border:1px solid var(--border);border-radius:14px;padding:14px;background:rgba(15,23,42,.45)} .small{font-size:13px;color:var(--muted)} .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    @media (max-width: 920px){.wrap{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.workspace{width:250px}.workspace-toggle{left:auto;right:12px}}
+  </style>
+</head>
+<body>
+<button class="workspace-toggle link" onclick="toggleWorkspace()">工作区</button>
+<aside id="workspace" class="workspace">
+  <strong>工作区</strong>
+  <div class="nav" style="margin-top:12px;">
+    <a href="/chat">1、会话窗口 /chat</a>
+    <a href="/view/upload.html">2、资料上传 view/upload.html</a>
+    <a href="/acl/manage">3、ACL 管理</a>
+    <a href="/personal.html">4、个人信息</a>
+  </div>
+  <div class="legacy">遗留问题：Chroma 前置更强过滤、文档脱敏后再入库。</div>
+</aside>
+<div class="wrap">
+  <div class="panel">
+    <h2 style="margin-top:0">个人信息</h2>
+    <div class="top-actions">
+      <a class="link" href="/chat">返回问答</a>
+      <a class="link" href="/view/upload.html">资料上传</a>
+      <a class="link" href="/acl/manage">ACL 管理</a>
+      <a class="btn primary" href="/chat" onclick="toggleWorkspace();return false;">返回工作区</a>
+      <a class="link" href="#" onclick="logout();return false;">退出系统</a>
+    </div>
+    <div class="legacy">管理员可以新增、修改、删除他人信息；普通用户仅可修改密码。</div>
+    <div class="hint" id="hint">正在加载个人信息...</div>
+    <div class="status" id="status">请稍候...</div>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">个人信息编辑</h2>
+    <div class="grid">
+      <div class="field"><label>账号</label><input id="user_id" readonly></div>
+      <div class="field"><label>姓名</label><input id="username"></div>
+      <div class="field"><label>部门</label><input id="dept_name"></div>
+      <div class="field"><label>部门代码</label><input id="dept_code"></div>
+      <div class="field"><label>角色等级</label><input id="role_level" type="number" min="0" max="3"></div>
+      <div class="field"><label>状态</label><select id="status"><option value="1">启用</option><option value="0">禁用</option></select></div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" onclick="saveCurrent()">保存当前用户</button>
+      <button class="btn" onclick="refreshInfo()">刷新</button>
+    </div>
+
+    <div id="adminPanel" style="display:none;margin-top:20px;">
+      <h3>管理员操作</h3>
+      <div class="grid">
+        <div class="field"><label>新用户账号</label><input id="new_user_id"></div>
+        <div class="field"><label>新用户姓名</label><input id="new_username"></div>
+        <div class="field"><label>新用户部门</label><input id="new_dept_name"></div>
+        <div class="field"><label>新用户部门代码</label><input id="new_dept_code"></div>
+        <div class="field"><label>新用户角色等级</label><input id="new_role_level" type="number" min="0" max="3" value="0"></div>
+        <div class="field"><label>新用户状态</label><select id="new_status"><option value="1">启用</option><option value="0">禁用</option></select></div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" onclick="createUser()">新增用户</button>
+        <button class="btn" onclick="loadUsers()">刷新用户列表</button>
+      </div>
+      <div class="table" id="userList"></div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h3>修改密码</h3>
+      <div class="grid">
+        <div class="field"><label>旧密码</label><input id="old_password" type="password"></div>
+        <div class="field"><label>新密码</label><input id="new_password" type="password"></div>
+      </div>
+      <div class="actions"><button class="btn primary" onclick="changePassword()">修改密码</button></div>
+    </div>
+  </div>
+</div>
+<script>
+const token = localStorage.getItem('token');
+function logout(){ localStorage.removeItem('token'); location.href='/'; }
+function toggleWorkspace(){ const ws=document.getElementById('workspace'); ws.classList.toggle('collapsed'); localStorage.setItem('workspace_collapsed', ws.classList.contains('collapsed') ? '1' : '0'); }
+function setStatus(m,t=''){ const e=document.getElementById('status'); e.className='status '+t; e.textContent=m; }
+async function api(url, options={}){ const resp=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(options.headers||{})}}); const data=await resp.json(); return data; }
+async function refreshInfo(){ const data=await api('/api/user/info'); if(data.user_id){ document.getElementById('user_id').value=data.user_id; document.getElementById('username').value=data.username||''; document.getElementById('dept_name').value=data.dept_name||''; document.getElementById('dept_code').value=data.dept_code||''; document.getElementById('role_level').value=data.role_level??0; document.getElementById('status').value=String(data.status??1); document.getElementById('hint').textContent=`当前身份：${data.user_id}，${data.is_admin?'管理员':'普通用户'}`; setStatus('个人信息已加载','success'); if(data.is_admin){ document.getElementById('adminPanel').style.display='block'; loadUsers(); } } else { setStatus(data.msg||'加载失败','error'); } }
+async function saveCurrent(){ const payload={user_id:document.getElementById('user_id').value,username:document.getElementById('username').value,dept_name:document.getElementById('dept_name').value,dept_code:document.getElementById('dept_code').value,role_level:Number(document.getElementById('role_level').value||0),status:Number(document.getElementById('status').value||1)}; const data=await api('/api/user/update',{method:'POST',body:JSON.stringify(payload)}); setStatus(data.msg||'保存成功', data.code===200?'success':'error'); }
+async function changePassword(){ const payload={old_password:document.getElementById('old_password').value,new_password:document.getElementById('new_password').value}; const data=await api('/api/user/password',{method:'POST',body:JSON.stringify(payload)}); setStatus(data.msg||'修改成功', data.code===200?'success':'error'); }
+async function loadUsers(){ const data=await api('/api/user/list'); const list=document.getElementById('userList'); list.innerHTML=''; if(data.code!==200){ list.innerHTML=`<div class="item">${data.msg||'加载失败'}</div>`; return; } data.data.forEach(u=>{ const div=document.createElement('div'); div.className='item'; div.innerHTML=`<div><strong>${u.user_id}</strong> ${u.username||''}</div><div class="small">部门：${u.dept_name||''} | 代码：${u.dept_code||''} | 角色：${u.role_level} | 状态：${u.status}</div><div class="actions"><button class="btn" onclick='editUser(${JSON.stringify(u)})'>编辑</button><button class="btn danger" onclick="deleteUser('${u.user_id}')">删除</button></div>`; list.appendChild(div); }); }
+function editUser(u){ document.getElementById('new_user_id').value=u.user_id; document.getElementById('new_username').value=u.username||''; document.getElementById('new_dept_name').value=u.dept_name||''; document.getElementById('new_dept_code').value=u.dept_code||''; document.getElementById('new_role_level').value=u.role_level||0; document.getElementById('new_status').value=String(u.status??1); }
+async function createUser(){ const payload={user_id:document.getElementById('new_user_id').value,username:document.getElementById('new_username').value,dept_name:document.getElementById('new_dept_name').value,dept_code:document.getElementById('new_dept_code').value,role_level:Number(document.getElementById('new_role_level').value||0),status:Number(document.getElementById('new_status').value||1)}; const data=await api('/api/user/create',{method:'POST',body:JSON.stringify(payload)}); setStatus(data.msg||'创建成功', data.code===200?'success':'error'); if(data.code===200) loadUsers(); }
+async function deleteUser(uid){ if(!confirm('确定删除该用户吗？')) return; const resp=await fetch(`/api/user/delete/${encodeURIComponent(uid)}`,{method:'DELETE',headers:{Authorization:`Bearer ${token}`}}); const data=await resp.json(); setStatus(data.msg||'删除完成', data.code===200?'success':'error'); if(data.code===200) loadUsers(); }
+if(!token){ location.href='/'; } if(localStorage.getItem('workspace_collapsed')==='1') toggleWorkspace(); refreshInfo();
+</script>
+</body>
+</html>

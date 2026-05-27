@@ -58,6 +58,10 @@ async def go_acl_manage():
 async def go_acl_logs():
     return FileResponse("view/acl_logs.html")
 
+@app.get("/personal.html")
+async def go_personal():
+    return FileResponse("view/personal.html")
+
 # ============ 文档入库接口（保留不变） ============
 @app.get("/api/user/me")
 async def get_me(

@@ -19,6 +19,7 @@ class UserRbac(Base):
     dept_name = Column(String(50))
     dept_code = Column(String(50))
     role_level = Column(Integer, default=0)
+    password_hash = Column(String(255), default="")
     privilege_tag = Column(String(200), default="")
     status = Column(Integer, default=1)
     create_time = Column(DateTime, default=datetime.datetime.now)

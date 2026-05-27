@@ -7,16 +7,31 @@
     <style>
         :root{--bg:linear-gradient(135deg,#0f172a,#1e293b);--card:rgba(15,23,42,.86);--border:rgba(148,163,184,.25);--text:#e2e8f0;--muted:#94a3b8;--primary:#38bdf8;--success:#22c55e;--danger:#ef4444}
         *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding:24px}
-        .layout{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:340px 1fr;gap:20px}.panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
+        .layout{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:320px 1fr;gap:20px}.panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
         .user-item{margin-bottom:12px;line-height:1.6;color:var(--muted)} .user-item strong{color:var(--text)} .hint{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd;line-height:1.7}
         textarea{width:100%;min-height:120px;border-radius:14px;border:1px solid var(--border);background:rgba(15,23,42,.7);color:var(--text);padding:14px;font-size:15px;resize:vertical} button{margin-top:12px;padding:12px 16px;border:none;border-radius:12px;background:var(--primary);color:#082f49;font-weight:700;cursor:pointer}
         .ans{margin-top:18px;white-space:pre-wrap;line-height:1.8;color:var(--text);border-top:1px solid var(--border);padding-top:16px}.status{color:var(--muted)} a{color:var(--primary);text-decoration:none}
         .top-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.action-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text)}
-        .legacy{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fde68a;line-height:1.7}.logbox{margin-top:12px;max-height:260px;overflow:auto;white-space:pre-wrap;background:rgba(2,6,23,.6);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;line-height:1.6}
-        @media (max-width: 920px){.layout{grid-template-columns:1fr}}
+        .workspace{position:fixed;left:0;top:0;height:100vh;width:280px;background:rgba(15,23,42,.95);border-right:1px solid var(--border);padding:16px;transform:translateX(0);transition:transform .25s ease;z-index:30;overflow:auto}
+        .workspace.collapsed{transform:translateX(-100%)} .workspace-toggle{position:fixed;left:8px;top:12px;z-index:40}.workspace h4{margin:8px 0 12px}.workspace .nav{display:flex;flex-direction:column;gap:8px}.workspace .nav a{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(148,163,184,.15);color:var(--text);text-decoration:none}.main{margin-left:300px}.main.expanded{margin-left:24px}.legacy{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fde68a;line-height:1.7}.logbox{margin-top:12px;max-height:260px;overflow:auto;white-space:pre-wrap;background:rgba(2,6,23,.6);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;line-height:1.6}.workspace .brand{font-size:20px;line-height:1.1;font-weight:800;margin:0 0 12px;color:var(--text);text-align:left}.workspace-toggle{font-weight:700}.workspace .nav a.active{outline:2px solid rgba(56,189,248,.45)}
+        @media (max-width: 920px){.layout{grid-template-columns:1fr}.main{margin-left:0}.workspace{width:250px}.workspace-toggle{left:auto;right:12px}}
     </style>
 </head>
 <body>
+<button class="workspace-toggle action-btn" onclick="toggleWorkspace()">工作区</button>
+<aside id="workspace" class="workspace">
+    <div class="brand">工作区</div>
+    <h4>快捷入口</h4>
+    <div class="nav">
+        <a href="/chat">1、会话窗口 /chat</a>
+        <a href="/view/upload.html">2、资料上传 view/upload.html</a>
+        <a href="/acl/manage">3、ACL 管理</a>
+        <a href="/personal.html">4、个人信息</a>
+        <a href="#" onclick="logout();return false;">退出系统</a>
+    </div>
+    <div class="legacy">遗留问题：Chroma 前置更强过滤、文档脱敏后再入库。</div>
+</aside>
+<div id="main" class="main">
 <div class="layout">
     <div class="panel">
         <h3 style="margin-top:0">企业私有知识库问答</h3>
@@ -25,10 +40,11 @@
         <div class="user-item"><strong>角色等级</strong><br><span id="role_display">加载中...</span></div>
         <div class="user-item"><strong>可访问最高密级</strong><br><span id="max_secret_display">加载中...</span></div>
         <div class="hint" id="scope_hint">正在加载你的访问范围...</div>
-        <div class="legacy">遗留问题：Chroma 前置更强过滤、文档脱敏后再入库，后续再处理。</div>
+        <div class="legacy">ACL 命中日志可在 ACL 日志页查看。</div>
         <div class="top-actions">
             <a class="action-btn" href="/view/upload.html">上传资料</a>
-            <a class="action-btn" href="/admin">管理后台</a>
+            <a class="action-btn" href="/acl/manage">ACL 管理</a>
+            <a class="action-btn" href="/personal.html">个人信息</a>
             <a class="action-btn" href="#" onclick="logout();return false;">退出系统</a>
         </div>
     </div>
@@ -36,16 +52,18 @@
         <textarea id="q" placeholder="请输入问题，例如：AISWare iLinkS有哪些款型"></textarea><br>
         <button onclick="ask()">提交提问</button>
         <div id="ans" class="ans status">请先提问。</div>
-        <div class="legacy">ACL 命中日志可在上传页左侧查看；后续可做单独日志页。</div>
     </div>
+</div>
 </div>
 <script>
 const token = localStorage.getItem('token');
 const userDisplay = document.getElementById('user_display'); const deptDisplay = document.getElementById('dept_display'); const roleDisplay = document.getElementById('role_display'); const maxSecretDisplay = document.getElementById('max_secret_display'); const scopeHint = document.getElementById('scope_hint'); const ans = document.getElementById('ans');
 const roleNames = ['普通员工','业务骨干','部门负责人','高管/管理员']; const secretLabels = ['0 - 公开','1 - 普通','2 - 内部','3 - 机密'];
 function logout(){ localStorage.removeItem('token'); location.href='/'; }
+function toggleWorkspace(){ const ws=document.getElementById('workspace'); const main=document.getElementById('main'); ws.classList.toggle('collapsed'); main.classList.toggle('expanded'); localStorage.setItem('workspace_collapsed', ws.classList.contains('collapsed') ? '1' : '0'); }
 async function loadUserInfo(){ if(!token){ location.href='/'; return; } const resp=await fetch('/api/user/info',{headers:{Authorization:`Bearer ${token}`}}); const data=await resp.json(); if(resp.ok&&data.user_id){ userDisplay.textContent=`${data.user_id}（${data.username||''}）`; deptDisplay.textContent=data.dept_name||''; roleDisplay.textContent=`${data.role_level} - ${roleNames[data.role_level]||'未知'}`; maxSecretDisplay.textContent=`${data.allow_max_secret} - ${secretLabels[data.allow_max_secret]||''}`; scopeHint.textContent=`你当前可检索本部门资料，系统会过滤超过 ${data.allow_max_secret} 级的文档。`; } }
 async function ask(){ if(!token){location.href='/';return;} const q=document.getElementById('q').value; ans.innerText='正在思考，请稍候...'; try{ const res=await fetch('/rag/chat',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/x-www-form-urlencoded'},body:'query='+encodeURIComponent(q)}); const text=await res.text(); let data; try{data=JSON.parse(text)}catch{throw new Error(text||'服务返回了非JSON内容')} ans.innerText=data.data||data.msg||'暂无返回结果'; }catch(error){ ans.innerText='请求失败：'+error.message; } }
+if(localStorage.getItem('workspace_collapsed')==='1'){ document.getElementById('workspace').classList.add('collapsed'); document.getElementById('main').classList.add('expanded'); }
 loadUserInfo();
 </script>
 </body>
