@@ -1,5 +1,3 @@
-CREATE DATABASE  IF NOT EXISTS `rag_rbac` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
-USE `rag_rbac`;
 -- MySQL dump 10.13  Distrib 8.0.26, for Win64 (x86_64)
 --
 -- Host: 127.0.0.1    Database: rag_rbac
@@ -18,6 +16,38 @@ USE `rag_rbac`;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
+-- Table structure for table `doc_acl`
+--
+
+DROP TABLE IF EXISTS `doc_acl`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `doc_acl` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `doc_permission_id` int(11) NOT NULL,
+  `subject_type` varchar(20) NOT NULL,
+  `subject_value` varchar(100) NOT NULL,
+  `acl_type` varchar(10) NOT NULL,
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_doc_acl_item` (`doc_permission_id`,`subject_type`,`subject_value`,`acl_type`),
+  KEY `idx_doc_acl_doc_permission_id` (`doc_permission_id`),
+  KEY `idx_doc_acl_subject` (`subject_type`,`subject_value`),
+  KEY `idx_doc_acl_acl_type` (`acl_type`),
+  CONSTRAINT `fk_doc_acl_doc_permission_id` FOREIGN KEY (`doc_permission_id`) REFERENCES `doc_permission` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `doc_acl`
+--
+
+LOCK TABLES `doc_acl` WRITE;
+/*!40000 ALTER TABLE `doc_acl` DISABLE KEYS */;
+/*!40000 ALTER TABLE `doc_acl` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `doc_permission`
 --
 
@@ -30,8 +60,6 @@ CREATE TABLE `doc_permission` (
   `vec_group_id` varchar(50) NOT NULL COMMENT '向量库分组ID(部门隔离)',
   `dept_owner` varchar(50) NOT NULL COMMENT '文档归属部门',
   `secret_level` tinyint(4) NOT NULL DEFAULT '1' COMMENT '密级：0全员公开 1部门普通 2骨干可见 3负责人绝密',
-  `white_list_users` varchar(1000) DEFAULT '' COMMENT '白名单user_id，逗号分隔',
-  `black_list_users` varchar(1000) DEFAULT '' COMMENT '黑名单user_id，逗号分隔',
   `is_allow_summary` tinyint(4) DEFAULT '1' COMMENT '是否允许AI摘要 1是0否',
   `is_allow_export` tinyint(4) DEFAULT '1' COMMENT '是否允许导出原文 1是0否',
   `uploader_id` varchar(50) NOT NULL COMMENT '上传人user_id',
@@ -39,13 +67,17 @@ CREATE TABLE `doc_permission` (
   `text_sha256` varchar(64) DEFAULT NULL,
   `original_filename` varchar(255) NOT NULL DEFAULT '',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '入库时间',
+  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+  `deleted_by` varchar(50) DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL,
+  `delete_reason` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_docid` (`doc_id`),
   UNIQUE KEY `ux_doc_permission_file_sha256` (`file_sha256`),
   UNIQUE KEY `ux_doc_permission_text_sha256` (`text_sha256`),
   KEY `idx_dept_owner` (`dept_owner`),
   KEY `idx_secret_level` (`secret_level`)
-) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COMMENT='文档&向量切片权限绑定表';
+) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb4 COMMENT='文档&向量切片权限绑定表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -54,7 +86,6 @@ CREATE TABLE `doc_permission` (
 
 LOCK TABLES `doc_permission` WRITE;
 /*!40000 ALTER TABLE `doc_permission` DISABLE KEYS */;
-INSERT INTO `doc_permission` VALUES (24,'45c80808-5d22-4fa0-9d72-dbc88de62cd5','dept_销售部','销售部',1,'','',1,1,'sale_staff_01','1d94cf8383a68108497b846bc2dfd95e83004ebe34cdc2d88d043926e95f52a9','6e3b1d8a1ba2140290c012105ad61ffd2efb12807d60181bdaa8aa087cc710ea','09.AISWare iLink_专网智连产品_V2.0_白皮书V2.0.docx','2026-05-26 21:06:06');
 /*!40000 ALTER TABLE `doc_permission` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -103,10 +134,11 @@ CREATE TABLE `user_rbac` (
   `privilege_tag` varchar(200) DEFAULT '' COMMENT '扩展权限标签',
   `status` tinyint(4) DEFAULT '1' COMMENT '账号状态：1正常 0禁用',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `password_hash` varchar(255) NOT NULL DEFAULT '',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_userid` (`user_id`),
   KEY `idx_dept` (`dept_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COMMENT='RBAC用户权限主表';
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COMMENT='RBAC用户权限主表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -115,7 +147,7 @@ CREATE TABLE `user_rbac` (
 
 LOCK TABLES `user_rbac` WRITE;
 /*!40000 ALTER TABLE `user_rbac` DISABLE KEYS */;
-INSERT INTO `user_rbac` VALUES (1,'sale_staff_01','销售-普通员工A','销售部','DEPT_SALE',0,'',1,'2026-05-17 20:20:54'),(2,'sale_core_01','销售-骨干B','销售部','DEPT_SALE',1,'',1,'2026-05-17 20:20:54'),(3,'sale_mgr_01','销售-部门经理C','销售部','DEPT_SALE',2,'',1,'2026-05-17 20:20:54'),(4,'dev_staff_01','研发-普通员工D','研发部','DEPT_DEV',0,'',1,'2026-05-17 20:20:54'),(5,'dev_core_01','研发-骨干E','研发部','DEPT_DEV',1,'',1,'2026-05-17 20:20:54'),(6,'dev_mgr_01','研发-负责人F','研发部','DEPT_DEV',2,'',1,'2026-05-17 20:20:54'),(7,'finance_staff_01','财务-出纳G','财务部','DEPT_FIN',0,'',1,'2026-05-17 20:20:54'),(8,'finance_mgr_01','财务-主管H','财务部','DEPT_FIN',2,'',1,'2026-05-17 20:20:54'),(9,'hr_staff_01','人事-专员I','行政人事部','DEPT_HR',0,'',1,'2026-05-17 20:20:54'),(10,'admin_top_01','集团总经理J','总经办','DEPT_ADMIN',3,'',1,'2026-05-17 20:20:54');
+INSERT INTO `user_rbac` VALUES (1,'sale_staff_01','销售-普通员工A','销售部','DEPT_SALE',0,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(2,'sale_core_01','销售-骨干B','销售部','DEPT_SALE',1,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(3,'sale_mgr_01','销售-部门经理C','销售部','DEPT_SALE',2,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(4,'dev_staff_01','研发-普通员工D','研发部','DEPT_DEV',0,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(5,'dev_core_01','研发-骨干E','研发部','DEPT_DEV',1,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(6,'dev_mgr_01','研发-负责人F','研发部','DEPT_DEV',2,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(7,'finance_staff_01','财务-出纳G','财务部','DEPT_FIN',0,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(8,'finance_mgr_01','财务-主管H','财务部','DEPT_FIN',2,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(9,'hr_staff_01','人事-专员I','行政人事部','DEPT_HR',0,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(10,'admin_top_01','集团总经理J','总经办','DEPT_ADMIN',3,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'),(11,'sale_staff_02','销售-普通员工A','销售部','DEPT_SALE',0,'',1,'2026-05-17 20:20:54','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92');
 /*!40000 ALTER TABLE `user_rbac` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -128,4 +160,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-05-26 21:08:33
+-- Dump completed on 2026-05-30 22:47:04

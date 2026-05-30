@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chroma 管理页</title>
+    <link rel="stylesheet" href="/view/common/app.css">
+    <style>
+        .layout{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:320px 1fr;gap:20px}
+        .panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
+        .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+        .search{display:flex;gap:10px;margin-top:12px}
+        .search input,.search select,.search button,.toolbar button,.toolbar a{border-radius:12px;border:1px solid var(--border);background:var(--panel-strong);color:var(--text);padding:12px 14px;text-decoration:none}
+        .search input{flex:1}
+        .search button,.toolbar button{cursor:pointer;background:var(--primary);color:#082f49;border-color:transparent;font-weight:700}
+        .collections{display:flex;flex-direction:column;gap:12px;max-height:760px;overflow:auto}
+        .collection-item{border:1px solid var(--border);border-radius:16px;padding:14px;background:rgba(15,23,42,.45);cursor:pointer}
+        .collection-item.active{outline:2px solid rgba(56,189,248,.55)}
+        .meta{color:var(--muted);font-size:13px;line-height:1.7;margin-top:6px}
+        .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
+        .stat-card{border:1px solid var(--border);border-radius:14px;padding:14px;background:rgba(15,23,42,.45)}
+        .stat-card .label{color:var(--muted);font-size:13px}.stat-card .value{font-size:24px;font-weight:800;margin-top:6px}
+        .doc-list{display:flex;flex-direction:column;gap:12px;max-height:760px;overflow:auto;margin-top:14px}
+        .doc-item{border:1px solid var(--border);border-radius:16px;padding:14px;background:rgba(15,23,42,.45)}
+        .doc-item .title{font-size:16px;font-weight:700;margin-bottom:6px}.doc-item .small{color:var(--muted);font-size:13px;line-height:1.7}
+        .doc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+        .btn,.link-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text);text-decoration:none;cursor:pointer}
+        .btn.primary{background:var(--primary);color:#082f49;border-color:transparent;font-weight:700}.btn.danger{background:transparent;color:var(--danger);border-color:rgba(239,68,68,.4)}
+        .statusbox{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(15,23,42,.55);border:1px solid var(--border);color:var(--muted);white-space:pre-wrap}
+        .hint{padding:12px 14px;border-radius:12px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd;line-height:1.7}
+        @media (max-width: 920px){.layout{grid-template-columns:1fr}.stats-grid{grid-template-columns:1fr 1fr}}
+    </style>
+</head>
+<body>
+    <button class="workspace-toggle btn" onclick="window.AppShell.toggleWorkspace()">工作区</button>
+    <aside id="workspace" class="workspace">
+        <div class="brand">工作区</div>
+        <div id="sidebarSlot"></div>
+        <div class="legacy">Chroma 管理页用于查看统计、分片与删除操作。</div>
+    </aside>
+    <div id="main" class="main">
+        <div class="layout">
+            <div class="panel">
+                <h2 style="margin-top:0">集合列表</h2>
+                <div class="hint">admin 可查看全部；部门用户仅能查看自己可见范围内的统计与分片。</div>
+                <div class="toolbar">
+                    <button class="btn primary" onclick="loadStats()">刷新统计</button>
+                    <a class="link-btn" href="/chat">返回问答</a>
+                </div>
+                <div id="collectionList" class="collections"></div>
+            </div>
+            <div class="panel">
+                <h2 style="margin-top:0">Collection 详情</h2>
+                <div id="detailEmpty" class="hint">请选择左侧 collection 查看详情。</div>
+                <div id="detailBox" style="display:none;">
+                    <div class="stats-grid" id="statGrid"></div>
+                    <div id="adminOnlyDeleteArea" style="display:none;margin-top:14px;">
+                        <div class="hint">admin 可使用下面区域批量删除任意 vector id；部门用户不会看到该区域。</div>
+                        <div class="search">
+                            <input id="vectorIdsInput" placeholder="输入多个 vector id，用英文逗号或换行分隔">
+                            <button class="btn primary" onclick="batchDeleteVectorIds()">批量删除</button>
+                        </div>
+                    </div>
+                    <div class="search">
+                        <input id="filterKeyword" placeholder="按 doc_id / 部门 / 预览关键字过滤当前 collection">
+                        <button class="btn primary" onclick="renderDocList()">过滤</button>
+                    </div>
+                    <div class="search">
+                        <input id="jumpDocIdInput" placeholder="输入 doc_id 快速定位并高亮">
+                        <button class="btn primary" onclick="jumpToDocId()">定位</button>
+                    </div>
+                    <div class="toolbar" style="margin-top:14px;align-items:center;">
+                        <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;">
+                            <input id="selectAllDocs" type="checkbox" onchange="toggleSelectAllDocs()">
+                            全选当前结果
+                        </label>
+                        <button class="btn primary" type="button" onclick="prepareBatchDeleteSelectedDocs()">批量删除选中 doc_id</button>
+                    </div>
+                    <div id="confirmBox" style="display:none;margin-top:14px;" class="hint"></div>
+                    <div class="doc-list" id="docList"></div>
+                    <div id="auditArea" style="display:none;margin-top:14px;">
+                        <div class="hint">批量删除审计结果</div>
+                        <div class="statusbox" id="auditBox">等待执行批量删除...</div>
+                    </div>
+                    <div class="statusbox" id="statusBox">等待加载统计数据...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+<script src="/view/common/nav.js"></script>
+<script src="/view/common/app.js"></script>
+<script>
+const token = localStorage.getItem('token');
+let statsData = null;
+let currentCollection = null;
+let isAdmin = false;
+
+function logout(){ localStorage.removeItem('token'); location.href='/'; }
+function normalizeCollectionData(data){ return data && Array.isArray(data.collections) ? data.collections : []; }
+function setStatus(msg){ document.getElementById('statusBox').textContent = msg; }
+function setAudit(items){ const area = document.getElementById('auditArea'); const box = document.getElementById('auditBox'); if(!area || !box) return; if(!items || !items.length){ area.style.display = 'none'; box.textContent = '暂无审计结果'; return; } area.style.display = 'block'; box.innerHTML = items.map(item => `<div style="margin-bottom:8px;">${escapeHtml(item.vector_id || '-') } | doc_id=${escapeHtml(item.doc_id || '-') } | ${escapeHtml(item.status || '-') } | reason=${escapeHtml(item.reason || '-')}</div>`).join(''); }
+function requireLogin(){ if(!token){ location.href='/'; return false; } return true; }
+function escapeHtml(text){ return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function showAdminDeleteArea(){ const area = document.getElementById('adminOnlyDeleteArea'); if(area) area.style.display = isAdmin ? 'block' : 'none'; }
+async function loadCurrentUser(){ const resp = await fetch('/api/user/info', { headers:{ Authorization:`Bearer ${token}` } }); const data = await resp.json(); if(resp.ok && data.user_id){ isAdmin = !!data.is_admin; showAdminDeleteArea(); } }
+function clearSelectionState(){ document.getElementById('selectAllDocs').checked = false; document.getElementById('selectAllDocs').indeterminate = false; document.querySelectorAll('.doc-item .doc-select').forEach(cb => cb.checked = false); document.querySelectorAll('.doc-item').forEach(item => item.dataset.checked = '0'); const box = document.getElementById('confirmBox'); if(box){ box.style.display = 'none'; box.innerHTML = ''; } }
+function renderCollections(){ const list = document.getElementById('collectionList'); const collections = normalizeCollectionData(statsData); list.innerHTML=''; collections.forEach((col, idx) => { const el = document.createElement('div'); el.className = 'collection-item' + (currentCollection && currentCollection.name === col.name ? ' active' : (!currentCollection && idx === 0 ? ' active' : '')); el.innerHTML = `<div><strong>${escapeHtml(col.name)}</strong></div><div class="meta">切片数：${col.count || 0} | doc_id 数：${col.doc_count || 0}</div><div class="meta">部门分布：${escapeHtml(JSON.stringify(col.dept_distribution || {}))}</div><div class="meta">密级分布：${escapeHtml(JSON.stringify(col.secret_distribution || {}))}</div>`; el.onclick = () => selectCollection(col.name); list.appendChild(el); }); if(!currentCollection && collections.length){ currentCollection = collections[0]; } if(currentCollection) renderDetail(); }
+function selectCollection(name){ currentCollection = normalizeCollectionData(statsData).find(x => x.name === name) || null; clearSelectionState(); renderCollections(); renderDetail(); }
+function renderDetail(){ const detailEmpty = document.getElementById('detailEmpty'); const detailBox = document.getElementById('detailBox'); if(!currentCollection){ detailEmpty.style.display='block'; detailBox.style.display='none'; return; } detailEmpty.style.display='none'; detailBox.style.display='block'; const statGrid = document.getElementById('statGrid'); statGrid.innerHTML = `
+        <div class="stat-card"><div class="label">collection</div><div class="value">${escapeHtml(currentCollection.name)}</div></div>
+        <div class="stat-card"><div class="label">切片总数</div><div class="value">${currentCollection.count || 0}</div></div>
+        <div class="stat-card"><div class="label">doc_id 数</div><div class="value">${currentCollection.doc_count || 0}</div></div>
+        <div class="stat-card"><div class="label">sample ids</div><div class="value">${(currentCollection.sample_ids || []).length}</div></div>
+    `; showAdminDeleteArea(); renderDocList(); }
+function renderDocList(){ if(!currentCollection) return; const keyword = (document.getElementById('filterKeyword').value || '').trim().toLowerCase(); const list = document.getElementById('docList'); const entries = Object.entries(currentCollection.doc_chunks || {}); const previews = currentCollection.doc_previews || {}; const uploaders = currentCollection.doc_uploaders || {}; const filtered = keyword ? entries.filter(([docId]) => {
+        const preview = String(previews[docId] || '').toLowerCase();
+        const uploader = JSON.stringify(uploaders[docId] || {}).toLowerCase();
+        return docId.toLowerCase().includes(keyword) || preview.includes(keyword) || uploader.includes(keyword) || JSON.stringify(currentCollection.dept_distribution || {}).toLowerCase().includes(keyword) || JSON.stringify(currentCollection.secret_distribution || {}).toLowerCase().includes(keyword);
+    }) : entries;
+    list.innerHTML = '';
+    if(!filtered.length){ list.innerHTML = '<div class="hint">没有匹配的分片记录。</div>'; return; }
+    filtered.forEach(([docId, chunkCount]) => {
+        const preview = previews[docId] || '';
+        const secretLevel = Number((currentCollection.doc_secrets || {})[docId] ?? 0);
+        const uploader = uploaders[docId] || {};
+        const uploaderText = uploader.uploader_username ? `${uploader.uploader_id || '-'}（${uploader.uploader_username}）` : (uploader.uploader_id || '未知');
+        const item = document.createElement('div');
+        item.className = 'doc-item';
+        item.dataset.docId = docId;
+        item.dataset.checked = '0';
+        const actionButtons = secretLevel === 0 ? '' : `<button class="btn primary" type="button" onclick="deleteDoc('${docId}')">删除该文档所有分片</button>`;
+        item.innerHTML = `
+            <div class="doc-actions" style="margin-bottom:10px;">
+                <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;">
+                    <input type="checkbox" class="doc-select" onchange="syncDocSelection('${docId}', this.checked)">
+                    选择此 doc_id
+                </label>
+            </div>
+            <div class="title">${escapeHtml(docId)}</div>
+            <div class="small">切片数：${chunkCount}</div>
+            <div class="small">上传者：${escapeHtml(uploaderText)}</div>
+            <div class="small">预览：${escapeHtml(preview || '-')}</div>
+            <div class="doc-actions">
+                ${actionButtons}
+            </div>
+        `;
+        list.appendChild(item);
+    });
+    syncSelectAllState();
+    setStatus(`当前 collection: ${currentCollection.name} | 展示 ${filtered.length} 个 doc_id`);
+}
+function syncDocSelection(docId, checked){ const item = [...document.querySelectorAll('.doc-item')].find(el => (el.dataset.docId || '') === docId); if(item) item.dataset.checked = checked ? '1' : '0'; syncSelectAllState(); }
+function toggleSelectAllDocs(){ const checked = document.getElementById('selectAllDocs').checked; document.querySelectorAll('.doc-item .doc-select').forEach(cb => { cb.checked = checked; const item = cb.closest('.doc-item'); if(item) item.dataset.checked = checked ? '1' : '0'; }); }
+function syncSelectAllState(){ const cbs = [...document.querySelectorAll('.doc-item .doc-select')]; const all = cbs.length > 0 && cbs.every(cb => cb.checked); const any = cbs.some(cb => cb.checked); const selectAll = document.getElementById('selectAllDocs'); if(selectAll){ selectAll.checked = all; selectAll.indeterminate = any && !all; } }
+function jumpToDocId(){ if(!currentCollection) return; const target = (document.getElementById('jumpDocIdInput').value || '').trim(); if(!target){ setStatus('请输入 doc_id'); return; } const list = document.getElementById('docList'); const items = [...list.querySelectorAll('.doc-item')]; const targetItem = items.find(el => (el.dataset.docId || '') === target); if(targetItem){ items.forEach(el => el.classList.remove('active')); targetItem.classList.add('active'); targetItem.scrollIntoView({behavior:'smooth', block:'center'}); setStatus(`已定位到 doc_id: ${target}`); return; } setStatus(`当前 collection 中未找到 doc_id: ${target}`); }
+async function loadStats(){ if(!requireLogin()) return; setStatus('正在加载统计...'); await loadCurrentUser(); const resp = await fetch('/api/chroma/stats', { headers:{ Authorization:`Bearer ${token}` } }); const data = await resp.json(); if(resp.ok && data.code === 200){ statsData = data.data; currentCollection = normalizeCollectionData(statsData)[0] || null; renderCollections(); setStatus('统计加载完成'); } else { setStatus(data.detail || data.msg || '加载失败'); } }
+async function deleteDoc(docId){ if(!confirm(`确认删除文档 ${docId} 的所有分片吗？`)) return; const resp = await fetch('/api/chroma/delete-doc', { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify({ collection: currentCollection.name, doc_id: docId }) }); const data = await resp.json(); if(resp.ok && data.code === 200){ setStatus(`删除成功：${docId}，删除分片 ${data.removed}`); setAudit(data.audit || []); await loadStats(); } else { setAudit((data && data.audit) || []); setStatus(data.detail || data.msg || '删除失败'); } }
+async function batchDeleteVectorIds(){ if(!isAdmin){ setStatus('当前账号无批量删除权限'); return; } if(!currentCollection){ setStatus('请先选择 collection'); return; } const raw = document.getElementById('vectorIdsInput').value || ''; const ids = raw.split(/[\n,\s]+/).map(s => s.trim()).filter(Boolean); if(!ids.length){ setStatus('请输入至少一个 vector id'); return; } if(!confirm(`确认批量删除 ${ids.length} 个 vector id 吗？`)) return; const resp = await fetch('/api/chroma/delete-ids', { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify({ collection: currentCollection.name, ids }) }); const data = await resp.json(); if(resp.ok && data.code === 200){ setStatus(`批量删除成功，删除 ${data.removed} 条记录`); setAudit(data.audit || []); document.getElementById('vectorIdsInput').value=''; await loadStats(); } else { setAudit((data && data.audit) || []); setStatus(data.detail || data.msg || '批量删除失败'); } }
+function prepareBatchDeleteSelectedDocs(){ if(!currentCollection){ setStatus('请先选择 collection'); return; } const ids = [...document.querySelectorAll('.doc-item')].filter(el => el.dataset.checked === '1').map(el => el.dataset.docId).filter(Boolean); const box = document.getElementById('confirmBox'); if(!ids.length){ if(box){ box.style.display = 'none'; box.innerHTML = ''; } setStatus('请先勾选要删除的 doc_id'); return; } const entries = ids.map(docId => { const count = currentCollection.doc_chunks?.[docId] || 0; const secretLevel = Number((currentCollection.doc_secrets || {})[docId] ?? 0); const tag = secretLevel === 0 ? '<span style="color:#fca5a5;">公共文档，无法删除</span>' : `<span style="color:var(--muted);">(${count} 个切片)</span>`; return `<li>${escapeHtml(docId)} ${tag}</li>`; }); const html = [`<div style="font-weight:700;margin-bottom:8px;">删除确认清单（${ids.length} 项）</div>`,`<ol style="margin:0;padding-left:20px;line-height:1.8;">`,...entries,`</ol>`,`<div class="toolbar" style="margin-top:12px;">`,`<button class="btn danger" type="button" onclick="batchDeleteSelectedDocs()">确认批量删除</button>`,`<button class="btn" type="button" onclick="cancelBatchDeletePreview()">取消</button>`,`</div>`].join(''); if(box){ box.innerHTML = html; box.style.display = 'block'; } setStatus(`已生成删除确认清单，共 ${ids.length} 个 doc_id`); }
+function cancelBatchDeletePreview(){ const box = document.getElementById('confirmBox'); if(box){ box.style.display = 'none'; box.innerHTML = ''; } setStatus('已取消批量删除预览'); }
+async function batchDeleteSelectedDocs(){ if(!currentCollection){ setStatus('请先选择 collection'); return; } const ids = [...document.querySelectorAll('.doc-item')].filter(el => el.dataset.checked === '1').map(el => el.dataset.docId).filter(Boolean); if(!ids.length){ setStatus('请先勾选要删除的 doc_id'); return; } if(!confirm(`确认批量删除 ${ids.length} 个 doc_id 对应的所有分片吗？`)) return; setStatus(`正在批量删除 ${ids.length} 个 doc_id ...`); setAudit([]); try { const results = await Promise.all(ids.map(async (docId) => { try { const resp = await fetch('/api/chroma/delete-doc', { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify({ collection: currentCollection.name, doc_id: docId }) }); let data = {}; try { data = await resp.json(); } catch (_) { data = { detail: '删除接口未返回 JSON' }; } return { resp, data, docId }; } catch (error) { return { resp: null, data: { detail: error.message }, docId }; } })); const audit = []; let removed = 0; results.forEach(({resp, data, docId}) => { if(resp && resp.ok && data.code === 200){ removed += data.removed || 0; audit.push(...(data.audit || [{ vector_id: docId, doc_id: docId, status:'deleted', reason:'batch_delete' }])); } else { audit.push({ vector_id: docId, doc_id: docId, status:'skipped', reason: data.detail || data.msg || 'delete_failed' }); } }); setStatus(`批量删除完成，删除 ${removed} 条记录`); setAudit(audit); const box = document.getElementById('confirmBox'); if(box){ box.style.display = 'none'; box.innerHTML = ''; } await loadStats(); } catch (err) { setStatus('批量删除失败：' + err.message); } }
+window.addEventListener('DOMContentLoaded', function(){
+    window.AppShell.mountSidebar('chroma');
+    window.AppShell.restoreWorkspaceState();
+    if(requireLogin()) loadStats();
+});
+</script>
+</body>
+</html>

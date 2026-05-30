@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import uuid
+from pathlib import Path
 from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import Docx2txtLoader, TextLoader
@@ -65,10 +66,13 @@ def _sha256_of_text(text: str) -> str:
 
 # 文档切片
 def split_document(file_path: str):
-    if file_path.endswith('.docx'):
+    suffix = Path(file_path).suffix.lower()
+    if suffix == '.docx':
         loader = Docx2txtLoader(file_path)
-    elif file_path.endswith('.txt'):
+    elif suffix == '.txt':
         loader = TextLoader(file_path, encoding='utf-8')
+    elif suffix in {'.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif'}:
+        raise ValueError('图片文件需要先进行 OCR 识别后再入库')
     else:
         raise ValueError(f"不支持的文件类型: {file_path}")
 

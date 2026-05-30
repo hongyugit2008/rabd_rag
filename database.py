@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from config import *
@@ -19,7 +19,7 @@ class UserRbac(Base):
     dept_name = Column(String(50))
     dept_code = Column(String(50))
     role_level = Column(Integer, default=0)
-    password_hash = Column(String(255), default="")
+    password_hash = Column(String(255), nullable=False, server_default=text("''"))
     privilege_tag = Column(String(200), default="")
     status = Column(Integer, default=1)
     create_time = Column(DateTime, default=datetime.datetime.now)
@@ -38,6 +38,10 @@ class DocPermission(Base):
     file_sha256 = Column(String(64), unique=True, index=True, nullable=False)
     text_sha256 = Column(String(64), index=True, nullable=False)
     original_filename = Column(String(255), default="")
+    is_deleted = Column(Integer, default=0)
+    deleted_by = Column(String(50), default="")
+    deleted_at = Column(DateTime, nullable=True)
+    delete_reason = Column(String(255), default="")
     create_time = Column(DateTime, default=datetime.datetime.now)
 
 # 3. 统一文档 ACL 表：黑名单/白名单/部门/角色都走这里

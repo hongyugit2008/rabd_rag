@@ -1,72 +1,66 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>企业知识库-登录</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业知识库 - 登录</title>
+    <link rel="stylesheet" href="/view/common/app.css">
     <style>
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-            background: linear-gradient(135deg, #0f172a, #1e293b);
-            color: #e2e8f0;
-        }
-        .card {
-            width: min(420px, calc(100% - 32px));
-            background: rgba(15, 23, 42, 0.86);
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            border-radius: 20px;
-            padding: 28px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
-        }
-        input, button {
-            width: 100%;
-            box-sizing: border-box;
-            border-radius: 12px;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            background: rgba(15, 23, 42, 0.7);
-            color: #e2e8f0;
-            padding: 12px 14px;
-            font-size: 15px;
-        }
-        button {
-            background: #38bdf8;
-            color: #082f49;
-            font-weight: 700;
-            cursor: pointer;
-            margin-top: 4px;
-        }
-        .msg {
-            margin-top: 12px;
-            color: #94a3b8;
-            min-height: 22px;
-        }
-        .top-actions {
-            margin-top: 18px;
-            display: flex;
-            justify-content: center;
-        }
-        .action-btn {
-            color: #38bdf8;
-            text-decoration: none;
-        }
+        body{display:grid;place-items:center}
+        .workspace{padding:16px}
+        .workspace .nav{display:flex;flex-direction:column;gap:8px}.workspace .nav a.active{outline:2px solid rgba(56,189,248,.45)}
+        .main{margin-left:300px;transition:margin-left .25s ease}.main.expanded{margin-left:24px}
+        .hero{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;max-width:1200px;margin:0 auto}
+        .card{width:min(640px,100%);background:var(--card);border:1px solid var(--border);border-radius:20px;padding:30px;backdrop-filter:blur(10px);box-shadow:0 20px 50px rgba(0,0,0,.35)}
+        .panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;backdrop-filter:blur(10px)}.panel h2{margin:0 0 12px;font-size:22px}.panel ul{margin:14px 0 0;padding-left:20px;line-height:1.9;color:#cbd5e1}
+        .brandline{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}.title{margin:0 0 8px;font-size:30px;line-height:1.2}.sub{margin:0;color:var(--muted);line-height:1.7}
+        .field{display:flex;flex-direction:column;gap:8px;margin-bottom:14px} label{font-size:14px;color:#cbd5e1}
+        input,button{width:100%;border-radius:12px;border:1px solid var(--border);background:var(--panel-strong);color:var(--text);padding:12px 14px;font-size:15px} button{background:var(--primary);color:#082f49;font-weight:700;cursor:pointer;border-color:transparent;margin-top:6px}
+        .msg{margin-top:14px;min-height:22px;color:var(--muted);white-space:pre-wrap}.actions{display:flex;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap}.link{color:var(--primary);text-decoration:none}.danger{color:var(--danger)}
+        @media (max-width: 920px){.hero{grid-template-columns:1fr}.main{margin-left:0}}
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2 style="text-align:center;margin-top:0;">RBAC企业RAG智能知识库</h2>
-        <div style="margin:20px 0;">
-            <input type="text" id="user_id" placeholder="输入账号"><br><br>
-            <input type="password" id="pwd" placeholder="输入密码"><br><br>
-            <button onclick="login()">登录</button>
-        </div>
-        <div id="msg" class="msg"></div>
-        <div class="top-actions">
-            <a class="action-btn" href="#" onclick="logout(); return false;">退出系统</a>
+    <button class="workspace-toggle btn" onclick="toggleWorkspace()">工作区</button>
+    <aside id="workspace" class="workspace">
+        <div class="brand">工作区</div>
+        <div id="sidebarSlot"></div>
+        <div class="legacy">登录页用于进入系统，成功后可访问问答、上传、ACL 和个人信息。</div>
+    </aside>
+    <div id="main" class="main">
+        <div class="hero">
+            <div class="card">
+                <div class="brandline">RBAC Enterprise RAG</div>
+                <h1 class="title">企业知识库登录</h1>
+                <p class="sub">登录后将进入统一工作区布局，左侧为快捷入口，右侧为当前功能主内容。</p>
+                <div class="field">
+                    <label for="user_id">账号</label>
+                    <input type="text" id="user_id" placeholder="输入账号">
+                </div>
+                <div class="field">
+                    <label for="pwd">密码</label>
+                    <input type="password" id="pwd" placeholder="输入密码">
+                </div>
+                <button onclick="login()">登录</button>
+                <div id="msg" class="msg"></div>
+                <div class="actions">
+                    <a class="link" href="/chat">进入会话窗口</a>
+                    <a class="link danger" href="#" onclick="logout(); return false;">退出系统</a>
+                </div>
+            </div>
+            <div class="panel">
+                <h2>系统说明</h2>
+                <ul>
+                    <li>会话窗口用于 RAG 问答检索。</li>
+                    <li>资料上传用于文档入库与 ACL 绑定。</li>
+                    <li>ACL 管理用于调整白名单和黑名单规则。</li>
+                    <li>个人信息用于维护账号、部门和密码。</li>
+                </ul>
+            </div>
         </div>
     </div>
+    <script src="/view/common/nav.js"></script>
+    <script src="/view/common/workspace.js"></script>
     <script>
         const msgEl = document.getElementById('msg');
         function logout() {
@@ -74,24 +68,20 @@
             msgEl.textContent = '已退出登录';
         }
         async function login(){
-            let user_id = document.getElementById("user_id").value;
-            let pwd = document.getElementById("pwd").value;
-            let formData = new FormData();
-            formData.append("user_id", user_id);
-            formData.append("password", pwd);
-
-            let res = await fetch("/api/user/login", {
-                method: "POST",
-                body: formData
-            });
-            let data = await res.json();
-            if(data.code===200){
-                localStorage.setItem("token",data.token);
-                location.href="/chat";
-            }else{
-                msgEl.textContent = data.msg || '登录失败';
-            }
+            const user_id = document.getElementById('user_id').value;
+            const pwd = document.getElementById('pwd').value;
+            const formData = new FormData();
+            formData.append('user_id', user_id);
+            formData.append('password', pwd);
+            const res = await fetch('/api/user/login', { method: 'POST', body: formData });
+            const data = await res.json();
+            if(data.code===200){ localStorage.setItem('token',data.token); location.href='/chat'; } else { msgEl.textContent = data.msg || '登录失败'; }
         }
+        window.logout = logout;
+        window.addEventListener('DOMContentLoaded', function () {
+            window.AppShell.mountSidebar('login', { authenticated: false, subtitle: '未登录可查看' });
+            window.AppShell.restoreWorkspaceState();
+        });
     </script>
 </body>
 </html>

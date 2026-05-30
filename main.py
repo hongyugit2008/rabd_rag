@@ -11,6 +11,7 @@ from rag_service import rag_chat
 
 # 导入新增登录鉴权模块
 from user_api import router as user_router
+from chroma_api import router as chroma_router
 from auth_middleware import get_current_user
 from config import HOST, PORT, ROLE_SECRET_RULE
 
@@ -36,6 +37,7 @@ app.mount("/view", StaticFiles(directory="view"), name="view")
 
 # 注册用户登录相关接口
 app.include_router(user_router)
+app.include_router(chroma_router)
 
 # ============ 前端页面访问路由 ============
 @app.get("/")
@@ -90,7 +92,7 @@ async def list_acl_docs(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user)
 ):
-    query = db.query(DocPermission)
+    query = db.query(DocPermission).filter(DocPermission.is_deleted == 0)
     if keyword:
         kw = f"%{keyword.strip()}%"
         query = query.filter(
@@ -193,6 +195,17 @@ async def doc_ingest(
 
         safe_filename = os.path.basename(file.filename or "upload.docx").replace("\\", "_").replace("/", "_")
         file_path = os.path.join(temp_dir, f"{user.user_id}_{safe_filename}")
+        suffix = os.path.splitext(safe_filename)[1].lower()
+        allowed_suffixes = {'.txt', '.docx', '.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif'}
+        if suffix not in allowed_suffixes:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "code": 400,
+                    "msg": "不支持的文件类型",
+                    "detail": "当前仅支持 txt、docx、png、jpg、jpeg、bmp、webp、gif",
+                },
+            )
 
         allow_max_secret = ROLE_SECRET_RULE.get(int(user.role_level or 0), 0)
         if secret_level > allow_max_secret:

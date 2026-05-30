@@ -4,63 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理员后台</title>
+    <link rel="stylesheet" href="/view/common/app.css">
     <style>
-        body {
-            margin: 0;
-            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-            background: linear-gradient(135deg, #0f172a, #1e293b);
-            color: #e2e8f0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            padding: 24px;
-        }
-        .card {
-            width: min(900px, 100%);
-            background: rgba(15, 23, 42, 0.86);
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            border-radius: 20px;
-            padding: 28px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
-            backdrop-filter: blur(10px);
-        }
-        h3 { margin: 0 0 12px; font-size: 28px; }
-        p { color: #94a3b8; line-height: 1.7; }
-        ul { line-height: 1.9; }
-        .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
-        a {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 12px 16px;
-            border-radius: 12px;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            color: #e2e8f0;
-            text-decoration: none;
-            background: rgba(15, 23, 42, 0.55);
-        }
-        a.primary {
-            background: #38bdf8;
-            color: #082f49;
-            border-color: transparent;
-            font-weight: 700;
-        }
+        body{padding:24px}
+        .main{margin-left:300px;transition:margin-left .25s ease}.main.expanded{margin-left:24px}
+        .wrap{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:360px 1fr;gap:20px}.panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;backdrop-filter:blur(10px)}
+        .hero{display:flex;flex-direction:column;gap:10px}.eyebrow{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}.title{margin:0;font-size:30px;line-height:1.2}.sub{margin:0;color:var(--muted);line-height:1.7}
+        ul{margin:16px 0 0;padding-left:20px;line-height:1.9;color:#cbd5e1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.btn,.link{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,.55);color:var(--text);text-decoration:none}.btn.primary{background:var(--primary);color:#082f49;border-color:transparent;font-weight:700}
+        .panel h2{margin:0 0 12px;font-size:22px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.item{border:1px solid var(--border);border-radius:14px;padding:14px;background:rgba(15,23,42,.45)}.item strong{display:block;margin-bottom:6px}.small{color:var(--muted);font-size:14px;line-height:1.7}
+        @media (max-width: 920px){.wrap{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.main{margin-left:0}}
     </style>
 </head>
 <body>
-    <div class="card">
-        <h3>权限管理后台</h3>
-        <ul>
-            <li>用户账号管理（新增/禁用/修改角色等级）</li>
-            <li>部门架构维护</li>
-            <li>文档密级、白名单、黑名单配置</li>
-            <li>知识库文档上传与权限绑定</li>
-        </ul>
-        <p>所有权限规则沿用：跨部门隔离 + 部门内多层级RBAC</p>
-        <div class="actions">
-            <a class="primary" href="/view/upload.html">上传知识库资料</a>
-            <a href="/chat">返回对话页</a>
+    <button class="workspace-toggle btn" onclick="toggleWorkspace()">工作区</button>
+    <aside id="workspace" class="workspace">
+        <div class="brand">工作区</div>
+        <div id="sidebarSlot"></div>
+        <div class="legacy">管理员后台用于统一配置用户、部门、权限和文档策略。</div>
+    </aside>
+    <div id="main" class="main">
+        <div class="wrap">
+            <div class="panel hero">
+                <div class="eyebrow">Admin Center</div>
+                <h1 class="title">权限管理后台</h1>
+                <p class="sub">统一管理用户、部门、密级与文档权限。这里是管理员操作入口，和系统其它页面保持一致布局。</p>
+                <ul>
+                    <li>用户账号管理（新增 / 禁用 / 修改角色等级）</li>
+                    <li>部门架构维护</li>
+                    <li>文档密级、白名单、黑名单配置</li>
+                    <li>知识库文档上传与权限绑定</li>
+                </ul>
+                <div class="actions">
+                    <a class="btn primary" href="/view/upload.html">上传知识库资料</a>
+                    <a class="link" href="/chat">返回对话页</a>
+                    <a class="link" href="/personal.html">个人信息</a>
+                </div>
+            </div>
+            <div class="panel">
+                <h2>后台说明</h2>
+                <div class="grid">
+                    <div class="item">
+                        <strong>访问控制</strong>
+                        <div class="small">建议仅高权限账号可见。后续可接入角色判断和菜单联动。</div>
+                    </div>
+                    <div class="item">
+                        <strong>审计日志</strong>
+                        <div class="small">建议和 ACL 命中日志页、操作审计页串联，形成完整链路。</div>
+                    </div>
+                    <div class="item">
+                        <strong>内容安全</strong>
+                        <div class="small">建议保留上传前脱敏、密级校验与 ACL 白/黑名单规则。</div>
+                    </div>
+                    <div class="item">
+                        <strong>一致性</strong>
+                        <div class="small">当前已统一为深色卡片风格，与登录、对话、资料页保持一致。</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+    <script src="/view/common/nav.js"></script>
+    <script src="/view/common/workspace.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', function () {
+            window.AppShell.mountSidebar('admin');
+            window.AppShell.restoreWorkspaceState();
+        });
+    </script>
 </body>
 </html>
