@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>用户管理</title>
+  <link rel="stylesheet" href="/view/common/app.css">
+  <style>
+    .wrap{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:380px 1fr;gap:20px}.panel{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;backdrop-filter:blur(10px)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:8px}label{font-size:14px;color:#cbd5e1}input,select,textarea{border-radius:12px;border:1px solid var(--border);background:var(--panel-strong);color:var(--text);padding:12px 14px;font-size:15px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.table{margin-top:14px;display:flex;flex-direction:column;gap:10px}.item{border:1px solid var(--border);border-radius:14px;padding:14px;background:rgba(15,23,42,.45)}.small{font-size:13px;color:var(--muted);line-height:1.6}
+    .badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:12px}.danger{color:var(--danger)}
+    .dept-picker{display:flex;flex-wrap:wrap;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel-strong);max-height:220px;overflow:auto}
+    .dept-option{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(148,163,184,.16)}
+    .scope-hint{padding:12px 14px;border-radius:12px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.2);color:#bae6fd;line-height:1.6;margin:12px 0}
+    @media (max-width:920px){.wrap{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<button class="workspace-toggle btn" onclick="toggleWorkspace()">工作区</button>
+<aside id="workspace" class="workspace">
+  <div id="sidebarSlot"></div>
+  <div class="legacy">支持创建多部门管理员，但权限不能高于创建者。</div>
+</aside>
+<div class="wrap">
+  <div class="panel">
+    <h2 style="margin-top:0">创建管理员</h2>
+    <div class="small">超级管理员可创建多部门管理员；部门管理员只能创建本部门管理员，且权限不能高于自己。</div>
+    <div class="grid" style="margin-top:12px;">
+      <div class="field"><label>账号</label><input id="new_user_id"></div>
+      <div class="field"><label>姓名</label><input id="new_username"></div>
+      <div class="field"><label>权限等级</label><input id="new_role_level" type="number" min="2" max="99" value="2"></div>
+      <div class="field"><label>初始密码</label><input id="new_password" value="1234567"></div>
+      <div class="field"><label>部门代码</label><input id="new_dept_code"></div>
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label>部门多选</label>
+      <div id="deptPicker" class="dept-picker"></div>
+    </div>
+    <div class="scope-hint" id="scopeHint">正在加载当前用户可创建的部门范围...</div>
+    <div class="actions">
+      <button class="btn primary" onclick="createAdmin()">创建管理员</button>
+      <button class="btn" onclick="reloadUsers()">刷新列表</button>
+    </div>
+    <div id="status" class="status">等待操作...</div>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">用户列表</h2>
+    <div class="small">当前登录用户可查看的范围由权限决定。超级管理员可查看全量数据。</div>
+    <div class="table" id="userList"></div>
+  </div>
+</div>
+<script src="/view/common/nav.js"></script>
+<script src="/view/common/app.js"></script>
+<script>
+const token = localStorage.getItem('token');
+function setStatus(msg, type=''){ const el=document.getElementById('status'); el.className='status '+type; el.textContent=msg; }
+async function api(url, options={}){ const resp=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(options.headers||{})}}); return await resp.json(); }
+function logout(){ localStorage.removeItem('token'); location.href='/'; }
+async function me(){ return await api('/api/user/info'); }
+function getSelectedDepts(){ return [...document.querySelectorAll('#deptPicker input[type="checkbox"]:checked')].map(el => el.value); }
+function renderDeptPicker(depts=[], locked=false){ const picker=document.getElementById('deptPicker'); picker.innerHTML=''; if(!depts.length){ picker.innerHTML='<div class="small">当前没有可管理部门</div>'; return; } depts.forEach((dept, idx)=>{ const id=`dept_${idx}`; const label=document.createElement('label'); label.className='dept-option'; label.innerHTML=`<input type="checkbox" id="${id}" value="${dept}" ${idx===0 ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>${dept}</span>`; picker.appendChild(label); }); }
+function applyDeptScope(depts, isAdmin){ const scopeHint=document.getElementById('scopeHint'); if(!depts.length){ scopeHint.textContent='当前用户没有可创建的部门范围，请先补充部门归属。'; scopeHint.className='scope-hint'; return; } scopeHint.textContent = isAdmin ? `超级管理员可在以下部门中任意选择：${depts.join('、')}` : `当前用户仅可在以下部门中创建管理员：${depts.join('、')}`; scopeHint.className='scope-hint'; renderDeptPicker(depts, !isAdmin); }
+async function createAdmin(){
+  const payload={
+    user_id:document.getElementById('new_user_id').value.trim(),
+    username:document.getElementById('new_username').value.trim(),
+    dept_code:document.getElementById('new_dept_code').value.trim() || null,
+    role_level:Number(document.getElementById('new_role_level').value||2),
+    password:document.getElementById('new_password').value,
+    dept_names:getSelectedDepts()
+  };
+  const data=await api('/api/user/create-admin',{method:'POST',body:JSON.stringify(payload)});
+  setStatus(data.msg || '完成', data.code===200 ? 'success' : 'error');
+  if(data.code===200) reloadUsers();
+}
+async function reloadUsers(){
+  const data=await api('/api/user/list');
+  const list=document.getElementById('userList');
+  list.innerHTML='';
+  if(data.code!==200){ list.innerHTML=`<div class="item danger">${data.msg||'加载失败'}</div>`; return; }
+  data.data.forEach(u=>{
+    const div=document.createElement('div');
+    div.className='item';
+    const depts=(u.dept_names||[u.dept_name||'']).filter(Boolean).join('、') || '-';
+    div.innerHTML=`<div><strong>${u.user_id}</strong> <span class="badge">Lv.${u.role_level}</span> ${u.username||''}</div><div class="small">部门：${depts} | 代码：${(u.dept_codes||[u.dept_code||'']).filter(Boolean).join('、') || '-'} | 状态：${u.status} | 创建时间：${u.create_time}</div>`;
+    list.appendChild(div);
+  });
+}
+window.logout = logout;
+window.addEventListener('DOMContentLoaded', async function(){
+  window.AppShell.mountSidebar('user-manage');
+  window.AppShell.restoreWorkspaceState();
+  if(!token){ location.href='/'; return; }
+  const data = await me();
+  if(data.code===200 && data.is_admin){
+    const deptNames = data.dept_names || (data.dept_name ? [data.dept_name] : []);
+    setStatus(`当前用户：${data.user_id}，可创建不高于自己的管理员。`, 'success');
+    applyDeptScope(deptNames, data.user_id === 'admin');
+    if(data.user_id !== 'admin'){
+      document.getElementById('new_role_level').max = String(Math.max(2, Number(data.role_level || 2)));
+      document.getElementById('new_role_level').value = Math.min(Number(document.getElementById('new_role_level').value || 2), Number(data.role_level || 2));
+      document.getElementById('new_dept_code').value = data.dept_code || '';
+      if(deptNames.length === 1){
+        document.getElementById('new_dept_code').disabled = true;
+      }
+    }
+    reloadUsers();
+  } else {
+    setStatus(data.msg || '无权限访问', 'error');
+  }
+});
+</script>
+</body>
+</html>

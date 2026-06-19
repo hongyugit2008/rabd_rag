@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from database import UserRbac, DocPermission, DocAcl
-from config import ROLE_SECRET_RULE
+from database import UserRbac, DocPermission, DocAcl, UserDeptRelation
+from config import ROLE_SECRET_RULE, SUPER_ADMIN_ROLE_LEVEL
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,15 +24,26 @@ class RBACFilter:
             return []
         return doc_perm, self.db.query(DocAcl).filter(DocAcl.doc_permission_id == doc_perm.id).all()
 
+    def _user_depts(self) -> set[str]:
+        if not self.user_info:
+            return set()
+        if int(self.user_info.role_level or 0) >= SUPER_ADMIN_ROLE_LEVEL:
+            return set()
+        rows = self.db.query(UserDeptRelation).filter(UserDeptRelation.user_id == self.user_id).all()
+        dept_names = {row.dept_name for row in rows}
+        if dept_names:
+            return dept_names
+        return {self.user_info.dept_name} if self.user_info.dept_name else set()
+
     def _match_acl_subject(self, item: DocAcl) -> bool:
         user_id = self.user_id
-        dept_name = self.user_info.dept_name if self.user_info else ""
+        dept_names = self._user_depts()
         role_level = str(self.user_info.role_level if self.user_info else 0)
 
         if item.subject_type == "user":
             return item.subject_value == user_id
         if item.subject_type == "dept":
-            return item.subject_value == dept_name
+            return item.subject_value in dept_names
         if item.subject_type == "role":
             return item.subject_value == role_level
         return False
@@ -85,7 +96,7 @@ class RBACFilter:
         if not self.user_info:
             return []
 
-        user_dept = self.user_info.dept_name
+        user_depts = self._user_depts()
         user_role = self.user_info.role_level
         allow_max_secret = ROLE_SECRET_RULE.get(user_role, 0)
 
@@ -105,12 +116,12 @@ class RBACFilter:
                 )
                 continue
 
-            if doc.dept_owner != user_dept and doc.secret_level != 0:
+            if user_depts and doc.dept_owner not in user_depts and doc.secret_level != 0:
                 logger.info(
-                    "doc filtered by dept | user_id=%s | doc_id=%s | user_dept=%s | doc_dept=%s | secret_level=%s",
+                    "doc filtered by dept | user_id=%s | doc_id=%s | user_depts=%s | doc_dept=%s | secret_level=%s",
                     self.user_id,
                     doc_id,
-                    user_dept,
+                    sorted(user_depts),
                     doc.dept_owner,
                     doc.secret_level,
                 )

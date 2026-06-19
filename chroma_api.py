@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Any
 
 from auth_middleware import get_current_user
-from database import get_db, DocPermission
+from database import get_db, DocPermission, UserRbac, UserDeptRelation
 from chroma_admin import get_stats_payload, delete_by_ids, delete_by_where, get_client
 from chroma_service import get_access_scope, can_view_doc, list_visible_doc_ids
 import datetime
@@ -32,9 +32,10 @@ def chroma_stats(db: Session = Depends(get_db), user_id: str = Depends(get_curre
     scope = get_access_scope(db, user_id)
     if not scope['ok']:
         raise HTTPException(status_code=404, detail=scope['msg'])
-    payload = get_stats_payload(db=db)
+    payload = get_stats_payload()
     if scope['is_admin']:
         return {'code': 200, 'data': payload}
+
     visible_docs = set(list_visible_doc_ids(db, user_id))
     filtered = []
     for col in payload['collections']:
@@ -154,6 +155,11 @@ def chroma_delete_doc(payload: DeleteDocPayload, db: Session = Depends(get_db), 
         doc.deleted_by = user_id
         doc.deleted_at = datetime.datetime.now()
         doc.delete_reason = f'chroma_delete_doc:{payload.collection}'
+        # 释放 file_sha256 / text_sha256 唯一键，避免软删除后无法重新上传相同文件
+        if doc.file_sha256 and not doc.file_sha256.startswith('DEL:'):
+            doc.file_sha256 = f"DEL:{doc.doc_id}:{doc.file_sha256}"[:64]
+        if doc.text_sha256 and not doc.text_sha256.startswith('DEL:'):
+            doc.text_sha256 = f"DEL:{doc.doc_id}:{doc.text_sha256}"[:64]
         db.commit()
         return {'code': 200, 'msg': '删除成功', 'removed': removed, 'collection': payload.collection, 'doc_id': payload.doc_id}
     except Exception as exc:

@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Foreign
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from config import *
+from auth_utils import hash_password
 import datetime
 
 # 数据库连接初始化
@@ -16,12 +17,23 @@ class UserRbac(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String(50), unique=True, nullable=False)
     username = Column(String(50))
-    dept_name = Column(String(50))
-    dept_code = Column(String(50))
+    dept_name = Column(String(50), default="")  # 兼容旧逻辑：主部门/默认部门
+    dept_code = Column(String(50), default="")
     role_level = Column(Integer, default=0)
     password_hash = Column(String(255), nullable=False, server_default=text("''"))
     privilege_tag = Column(String(200), default="")
     status = Column(Integer, default=1)
+    create_time = Column(DateTime, default=datetime.datetime.now)
+
+
+# 1.1 用户-部门关联表（多部门）
+class UserDeptRelation(Base):
+    __tablename__ = "user_dept_relation"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(50), nullable=False, index=True)
+    dept_name = Column(String(50), nullable=False, index=True)
+    dept_code = Column(String(50), default="")
+    is_primary = Column(Integer, default=0)
     create_time = Column(DateTime, default=datetime.datetime.now)
 
 # 2. 文档权限表 doc_permission
@@ -70,9 +82,76 @@ class RbacRule(Base):
     allow_dept_list = Column(String(200), default="")
     is_cross_dept_query = Column(Integer, default=0)
 
+def seed_super_admin():
+    from auth_utils import hash_password
+    db = SessionLocal()
+    try:
+        admin = db.query(UserRbac).filter(UserRbac.user_id == "admin").first()
+        if not admin:
+            admin = UserRbac(
+                user_id="admin",
+                username="超级管理员",
+                dept_name="",
+                dept_code="",
+                role_level=99,
+                password_hash=hash_password("1234567"),
+                status=1,
+            )
+            db.add(admin)
+            db.commit()
+            return
+        changed = False
+        if int(admin.role_level or 0) != 99:
+            admin.role_level = 99
+            changed = True
+        if not admin.password_hash or admin.password_hash == "":
+            admin.password_hash = hash_password("1234567")
+            changed = True
+        if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
 # 创建所有数据表
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    seed_super_admin()
+    _seed_super_admin()
+
+
+def _seed_super_admin():
+    db = SessionLocal()
+    try:
+        admin = db.query(UserRbac).filter(UserRbac.user_id == "admin").first()
+        if not admin:
+            admin = UserRbac(
+                user_id="admin",
+                username="超级管理员",
+                dept_name="全局",
+                dept_code="GLOBAL",
+                role_level=SUPER_ADMIN_ROLE_LEVEL,
+                password_hash=hash_password("1234567"),
+                privilege_tag="system_super_admin",
+                status=1,
+            )
+            db.add(admin)
+            db.commit()
+        else:
+            changed = False
+            if int(admin.role_level or 0) != SUPER_ADMIN_ROLE_LEVEL:
+                admin.role_level = SUPER_ADMIN_ROLE_LEVEL
+                changed = True
+            if admin.password_hash != hash_password("1234567"):
+                admin.password_hash = hash_password("1234567")
+                changed = True
+            if (admin.username or "") != "超级管理员":
+                admin.username = "超级管理员"
+                changed = True
+            if changed:
+                db.commit()
+    finally:
+        db.close()
 
 # 获取数据库会话
 def get_db():

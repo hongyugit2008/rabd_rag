@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from config import ROLE_SECRET_RULE
-from database import DocAcl, DocPermission, UserRbac
+from database import DocAcl, DocPermission, UserRbac, UserDeptRelation
 
 
 @dataclass
@@ -27,21 +27,24 @@ def get_access_scope(db: Session, user_id: str) -> dict[str, Any]:
     role_level = int(user.role_level or 0)
     allow_max_secret = ROLE_SECRET_RULE.get(role_level, 0)
     is_admin = role_level >= 3 or user.user_id == 'admin'
+    rows = db.query(UserDeptRelation).filter(UserDeptRelation.user_id == user.user_id).all()
+    dept_names = [r.dept_name for r in rows if r.dept_name] or ([user.dept_name] if user.dept_name else [])
     return {
         'ok': True,
         'is_admin': is_admin,
         'user_id': user.user_id,
         'dept_name': user.dept_name or '',
+        'dept_names': dept_names,
         'role_level': role_level,
         'allow_max_secret': allow_max_secret,
     }
 
 
-def _match_acl_subject(item: DocAcl, user_id: str, dept_name: str, role_level: int) -> bool:
+def _match_acl_subject(item: DocAcl, user_id: str, dept_names: list[str], role_level: int) -> bool:
     if item.subject_type == 'user':
         return item.subject_value == user_id
     if item.subject_type == 'dept':
-        return item.subject_value == dept_name
+        return item.subject_value in dept_names
     if item.subject_type == 'role':
         return item.subject_value == str(role_level)
     return False
@@ -58,22 +61,22 @@ def can_view_doc(db: Session, user_id: str, doc: DocPermission) -> tuple[bool, s
     if scope['is_admin']:
         return True, 'admin'
 
-    dept_name = scope['dept_name']
+    dept_names = scope['dept_names']
     role_level = scope['role_level']
     allow_max_secret = scope['allow_max_secret']
 
     acl_items = db.query(DocAcl).filter(DocAcl.doc_permission_id == doc.id).all()
     if acl_items:
-        deny_hit = next((item for item in acl_items if item.acl_type == 'deny' and _match_acl_subject(item, user_id, dept_name, role_level)), None)
+        deny_hit = next((item for item in acl_items if item.acl_type == 'deny' and _match_acl_subject(item, user_id, dept_names, role_level)), None)
         if deny_hit:
             return False, 'deny'
         allow_items = [item for item in acl_items if item.acl_type == 'allow']
         if allow_items:
-            matched = next((item for item in allow_items if _match_acl_subject(item, user_id, dept_name, role_level)), None)
+            matched = next((item for item in allow_items if _match_acl_subject(item, user_id, dept_names, role_level)), None)
             if not matched:
                 return False, 'allow_miss'
 
-    if doc.dept_owner != dept_name and doc.secret_level != 0:
+    if dept_names and doc.dept_owner not in dept_names and doc.secret_level != 0:
         return False, 'dept'
     if int(doc.secret_level or 0) > allow_max_secret:
         return False, 'secret'

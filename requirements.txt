@@ -16,3 +16,6 @@ uuid-utils==0.2.0
 pypdf==3.17.4
 chardet==5.2.0
 charset-normalizer==3.3.2
+pillow==12.2.0
+pytesseract==0.3.13
+pillow==10.4.0

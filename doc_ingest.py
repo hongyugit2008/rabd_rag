@@ -3,6 +3,7 @@ import logging
 import os
 import uuid
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import Docx2txtLoader, TextLoader
@@ -10,7 +11,15 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from sqlalchemy.orm import Session
 
 from database import DocPermission, DocAcl
-from config import CHROMA_PERSIST_PATH, EMBEDDING_MODEL
+from config import (
+    CHROMA_PERSIST_PATH,
+    EMBEDDING_MODEL,
+    OCR_MIN_CHINESE_RATIO,
+    OCR_PREPROCESS_METHOD,
+    OCR_LANGUAGE,
+    OCR_ORIENTATION,
+)
+from ocr_utils import is_image_file, extract_text_from_image, assess_ocr_quality
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -67,21 +76,65 @@ def _sha256_of_text(text: str) -> str:
 # 文档切片
 def split_document(file_path: str):
     suffix = Path(file_path).suffix.lower()
-    if suffix == '.docx':
-        loader = Docx2txtLoader(file_path)
-    elif suffix == '.txt':
-        loader = TextLoader(file_path, encoding='utf-8')
-    elif suffix in {'.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif'}:
-        raise ValueError('图片文件需要先进行 OCR 识别后再入库')
-    else:
-        raise ValueError(f"不支持的文件类型: {file_path}")
-
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    temp_path = None
     try:
-        docs = loader.load_and_split(text_splitter=text_splitter)
-    except Exception as e:
-        raise RuntimeError(f"文档解析失败: {file_path} | 原因: {e}") from e
-    return docs
+        if suffix == '.docx':
+            loader = Docx2txtLoader(file_path)
+        elif suffix == '.txt':
+            loader = TextLoader(file_path, encoding='utf-8')
+        elif is_image_file(file_path):
+            text = extract_text_from_image(
+                file_path,
+                lang=OCR_LANGUAGE,
+                orientation=OCR_ORIENTATION,
+                preprocess_method=OCR_PREPROCESS_METHOD,
+            )
+            if not text.strip():
+                raise ValueError('图片 OCR 未识别到有效文本')
+
+            # OCR 质量评估
+            quality = assess_ocr_quality(text)
+            logger.info(
+                "ocr quality for %s | chinese_ratio=%.2f garbage_ratio=%.2f quality=%s",
+                os.path.basename(file_path),
+                quality["chinese_ratio"],
+                quality["garbage_ratio"],
+                quality["quality"],
+            )
+
+            if quality["quality"] == "unusable":
+                raise ValueError(
+                    f'图片 OCR 质量不可用（中文字符占比仅 {quality["chinese_ratio"]:.1%}），'
+                    f'请使用更清晰的图片或手动录入文本。'
+                    f'当前 OCR 最低要求: {OCR_MIN_CHINESE_RATIO:.0%}'
+                )
+            if quality["quality"] == "poor":
+                logger.warning(
+                    "ocr quality is poor for %s | chinese_ratio=%.2f | 入库后检索效果可能不理想",
+                    os.path.basename(file_path),
+                    quality["chinese_ratio"],
+                )
+
+            tmp = NamedTemporaryFile('w', encoding='utf-8', suffix='.txt', delete=False)
+            temp_path = tmp.name
+            tmp.write(text)
+            tmp.close()
+            loader = TextLoader(temp_path, encoding='utf-8')
+        else:
+            raise ValueError(f"不支持的文件类型: {file_path}")
+
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        try:
+            docs = loader.load_and_split(text_splitter=text_splitter)
+        except Exception as e:
+            raise RuntimeError(f"文档解析失败: {file_path} | 原因: {e}") from e
+        return docs
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 
 # 带权限打标的文档入库
@@ -98,7 +151,7 @@ def ingest_doc_with_rbac(
         file_bytes = f.read()
     file_sha256 = _sha256_of_bytes(file_bytes)
 
-    existing_doc = db.query(DocPermission).filter(DocPermission.file_sha256 == file_sha256).first()
+    existing_doc = db.query(DocPermission).filter(DocPermission.file_sha256 == file_sha256, DocPermission.is_deleted == 0).first()
     if existing_doc:
         raise ValueError(
             f"文件内容重复：已存在相同内容文档 doc_id={existing_doc.doc_id} | 原文件名={existing_doc.original_filename or original_filename}"
@@ -106,7 +159,7 @@ def ingest_doc_with_rbac(
 
     chunks = split_document(file_path)
     text_sha256 = _sha256_of_text("\n".join(chunk.page_content for chunk in chunks))
-    existing_text = db.query(DocPermission).filter(DocPermission.text_sha256 == text_sha256).first()
+    existing_text = db.query(DocPermission).filter(DocPermission.text_sha256 == text_sha256, DocPermission.is_deleted == 0).first()
     if existing_text:
         raise ValueError(
             f"文档语义内容重复：已存在相同文本文档 doc_id={existing_text.doc_id} | 原文件名={existing_text.original_filename or original_filename}"
@@ -120,8 +173,11 @@ def ingest_doc_with_rbac(
             "doc_id": doc_id,
             "vec_group_id": vec_group_id,
             "dept_owner": dept_owner,
-            "secret_level": secret_level
+            "secret_level": secret_level,
+            "filename": original_filename,
         })
+        # 将文件名注入分片文本，使文档标题/文件名可被向量检索命中
+        chunk.page_content = f"[文档：{original_filename}]\n{chunk.page_content}"
 
     try:
         texts = [chunk.page_content for chunk in chunks]

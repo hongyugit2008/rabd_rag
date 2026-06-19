@@ -5,6 +5,7 @@
     { href: '/acl/manage', label: 'ACL管理', key: 'acl-manage', requiresAuth: true },
     { href: '/personal.html', label: '个人信息', key: 'personal', requiresAuth: true },
     { href: '/view/chroma_manage.html', label: 'Chroma 管理', key: 'chroma', requiresAuth: true },
+    { href: '/view/user_manage.html', label: '用户管理', key: 'user-manage', requiresAuth: true },
     { href: '#logout', label: '退出系统', key: 'logout', action: 'logout', requiresAuth: true },
     { href: '/', label: '登录系统', key: 'login', guestOnly: true },
   ];

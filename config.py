@@ -37,6 +37,12 @@ CHROMA_PERSIST_PATH = _get_env("CHROMA_PERSIST_PATH", "./chroma_db")
 # Embedding 模型配置
 EMBEDDING_MODEL = _get_env("EMBEDDING_MODEL", "./models/bge-small-zh-v1.5")
 
+# OCR 配置
+OCR_MIN_CHINESE_RATIO = float(_get_env("OCR_MIN_CHINESE_RATIO", "0.30"))
+OCR_PREPROCESS_METHOD = _get_env("OCR_PREPROCESS_METHOD", "auto")
+OCR_LANGUAGE = _get_env("OCR_LANGUAGE", "auto")  # auto → 自动检测横排/竖排
+OCR_ORIENTATION = _get_env("OCR_ORIENTATION", "auto")  # auto / horizontal / vertical
+
 # 大模型配置
 LLM_API_KEY = _get_env("LLM_API_KEY", "")
 LLM_BASE_URL = _get_env("LLM_BASE_URL", "https://api.deepseek.com/v1")
@@ -55,5 +61,9 @@ ROLE_SECRET_RULE = {
     0: 1,
     1: 2,
     2: 3,
-    3: 3
+    3: 3,
+    99: 3,
 }
+
+# 系统超级管理员角色等级
+SUPER_ADMIN_ROLE_LEVEL = 99

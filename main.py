@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 # 导入原有业务模块
-from database import get_db, create_tables, UserRbac, DocPermission, DocAcl
+from database import get_db, create_tables, UserRbac, DocPermission, DocAcl, UserDeptRelation
 from doc_ingest import ingest_doc_with_rbac
 from rag_service import rag_chat
 
@@ -16,9 +16,8 @@ from auth_middleware import get_current_user
 from config import HOST, PORT, ROLE_SECRET_RULE
 
 import os
-import re
 import logging
-import fix_uuid  # 必须是最第一行
+# import fix_uuid  # 必须是最第一行
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +62,10 @@ async def go_acl_logs():
 @app.get("/personal.html")
 async def go_personal():
     return FileResponse("view/personal.html")
+
+@app.get("/view/user_manage.html")
+async def go_user_manage():
+    return FileResponse("view/user_manage.html")
 
 # ============ 文档入库接口（保留不变） ============
 @app.get("/api/user/me")
@@ -264,6 +267,18 @@ async def chat(
     user_id: str = Depends(get_current_user)
 ):
     res = rag_chat(db, user_id, query)
+    if isinstance(res, dict) and res.get("code") == 200 and isinstance(res.get("data"), dict):
+        data = res["data"]
+        return {
+            "code": 200,
+            "data": data["answer"],
+            "meta": {
+                "used_retrieval": data.get("used_retrieval", False),
+                "source_documents": data.get("source_documents", []),
+                "retrieval_count": data.get("retrieval_count", 0),
+                "answer_origin": data.get("answer_origin", "unknown"),
+            },
+        }
     return res
 
 if __name__ == "__main__":

@@ -20,7 +20,6 @@ client = OpenAI(
     base_url=LLM_BASE_URL.rstrip("/"),
 )
 
-
 def _acl_match_subject(item: DocAcl, user_id: str, dept_name: str, role_level: int) -> bool:
     role_level_str = str(role_level)
     if item.subject_type == "user":
@@ -30,7 +29,6 @@ def _acl_match_subject(item: DocAcl, user_id: str, dept_name: str, role_level: i
     if item.subject_type == "role":
         return item.subject_value == role_level_str
     return False
-
 
 def _get_acl_candidate_doc_ids(db: Session, user_id: str, dept_name: str, role_level: int):
     """先在数据库里筛出当前用户可访问的 doc_id，再去 Chroma 召回。"""
@@ -86,28 +84,42 @@ def _get_acl_candidate_doc_ids(db: Session, user_id: str, dept_name: str, role_l
 def _retrieve_chunks(query: str, dept_name: str, role_level: int, db: Session, user_id: str):
     """先按 ACL 过滤可访问文档，再检索 Chroma，并做密级/部门兜底。"""
     allow_max_secret = ROLE_SECRET_RULE.get(role_level, 0)
-    rbac = RBACFilter(db, user_id)
+    _ = RBACFilter(db, user_id)
     allowed_doc_ids = _get_acl_candidate_doc_ids(db, user_id, dept_name, role_level)
 
     if not allowed_doc_ids:
         logger.warning("acl prefilter returned no doc ids | user_id=%s", user_id)
         return []
 
-    candidates = []
-    try:
-        # Chroma 的 metadata filter 对大集合不友好，这里只做部门过滤，ACL 已前置到数据库层
-        candidates = vector_db.similarity_search(query, k=20, filter={"dept_owner": dept_name})
-        logger.info("dept filtered search hits=%s | dept=%s", len(candidates), dept_name)
-    except Exception:
-        logger.exception("dept filtered search failed | dept=%s", dept_name)
+    # 管理员/超级管理员可以跨部门检索
+    is_admin = role_level >= 3 or user_id == 'admin'
+    if is_admin:
+        logger.info("admin bypass dept filter | user_id=%s | role_level=%s", user_id, role_level)
 
-    if not candidates:
+    candidates = []
+    if is_admin:
+        # 管理员：跳过部门过滤，直接全局检索
         try:
             candidates = vector_db.similarity_search(query, k=20)
-            logger.info("fallback global search hits=%s", len(candidates))
+            logger.info("admin global search hits=%s", len(candidates))
         except Exception:
-            logger.exception("global search failed | user_id=%s", user_id)
+            logger.exception("admin global search failed | user_id=%s", user_id)
             return []
+    else:
+        try:
+            # Chroma 的 metadata filter 对大集合不友好，这里只做部门过滤，ACL 已前置到数据库层
+            candidates = vector_db.similarity_search(query, k=20, filter={"dept_owner": dept_name})
+            logger.info("dept filtered search hits=%s | dept=%s", len(candidates), dept_name)
+        except Exception:
+            logger.exception("dept filtered search failed | dept=%s", dept_name)
+
+        if not candidates:
+            try:
+                candidates = vector_db.similarity_search(query, k=20)
+                logger.info("fallback global search hits=%s", len(candidates))
+            except Exception:
+                logger.exception("global search failed | user_id=%s", user_id)
+                return []
 
     valid_chunks = []
     for idx, item in enumerate(candidates):
@@ -125,7 +137,8 @@ def _retrieve_chunks(query: str, dept_name: str, role_level: int, db: Session, u
 
         if not doc_id or doc_id not in allowed_doc_ids:
             continue
-        if doc_dept != dept_name and secret_level != 0:
+        # 管理员跳过部门过滤；普通用户仅允许本部门文档或公开文档（secret_level=0）
+        if not is_admin and doc_dept != dept_name and secret_level != 0:
             logger.info(
                 "chunk filtered by dept | user_id=%s | doc_id=%s | user_dept=%s | doc_dept=%s | secret_level=%s",
                 user_id,
@@ -155,6 +168,27 @@ def _retrieve_chunks(query: str, dept_name: str, role_level: int, db: Session, u
 
     logger.info("acl prefiltered doc_ids=%s | valid_chunks=%s", len(allowed_doc_ids), len(valid_chunks))
     return valid_chunks
+
+
+def _format_source_documents(valid_chunks):
+    sources = []
+    seen = set()
+    for rank, chunk in enumerate(valid_chunks, start=1):
+        metadata = chunk.metadata or {}
+        doc_id = metadata.get("doc_id") or ""
+        source_key = (doc_id, metadata.get("dept_owner"), metadata.get("secret_level"), chunk.page_content)
+        if source_key in seen:
+            continue
+        seen.add(source_key)
+        sources.append({
+            "rank": rank,
+            "doc_id": doc_id,
+            "dept_owner": metadata.get("dept_owner"),
+            "secret_level": metadata.get("secret_level"),
+            "vec_group_id": metadata.get("vec_group_id"),
+            "preview": (chunk.page_content or "")[:200],
+        })
+    return sources
 
 
 # RAG问答核心逻辑
@@ -192,14 +226,17 @@ def rag_chat(db: Session, user_id: str, query: str):
             )
             return {"code": 200, "data": "暂无相关资料"}
 
+        source_documents = _format_source_documents(valid_chunks)
         context = "\n".join([page.page_content for page in valid_chunks])
         logger.info("context_len=%s", len(context))
+        logger.info("source_documents_count=%s", len(source_documents))
 
         prompt = f"""
 你是企业内部智能办公助手，严格遵守数据权限规则：
 1. 仅基于给定上下文回答，禁止编造、推演、猜测涉密数据
 2. 禁止输出跨部门涉密信息、底价、成本、薪资等敏感内容
 3. 无明确信息时直接回复「暂无相关资料」
+4. 你必须优先使用上下文中的事实作答，不要引入上下文外信息
 
 上下文：{context}
 用户问题：{query}
@@ -216,7 +253,16 @@ def rag_chat(db: Session, user_id: str, query: str):
         )
         answer = response.choices[0].message.content or "暂无相关资料"
         logger.info("llm success | answer_len=%s", len(answer))
-        return {"code": 200, "data": answer}
+        return {
+            "code": 200,
+            "data": {
+                "answer": answer,
+                "used_retrieval": bool(source_documents),
+                "source_documents": source_documents,
+                "retrieval_count": len(source_documents),
+                "answer_origin": "rag" if source_documents else "llm_only",
+            },
+        }
     except Exception as e:
         logger.exception("rag_chat failed | user_id=%s | query=%s", user_id, query)
         return {"code": 500, "msg": f"问答服务异常：{e}"}
